@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var picker: PickerPanelController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppMainMenu.install()
+
         let provider = ScreenCaptureWindowProvider()
         let capturer = ScreenCaptureWindowCapturer()
 

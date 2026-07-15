@@ -50,6 +50,10 @@ final class KeyCatcherView: NSView {
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
             guard self.window?.isVisible == true else { return event }
+            // Let Edit menu key equivalents (Cmd+A/C/V/X/Z, etc.) reach the responder chain.
+            if event.modifierFlags.contains(.command) {
+                return event
+            }
             switch event.keyCode {
             case 126: // up
                 self.onUp?()
