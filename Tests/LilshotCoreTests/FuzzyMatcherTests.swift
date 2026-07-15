@@ -79,6 +79,18 @@ final class FuzzyMatcherTests: XCTestCase {
         XCTAssertGreaterThan(ranked[0].score, ranked[1].score)
     }
 
+    func testChromeRanksShorterAppNameAboveAutoFillGoogleChrome() {
+        let windows = [
+            window(id: 1, app: "AutoFill (Google Chrome)"),
+            window(id: 2, app: "Google Chrome"),
+        ]
+
+        let ranked = FuzzyMatcher.rank(query: "chrome", in: windows)
+
+        XCTAssertEqual(ranked.map(\.window.id), [2, 1])
+        XCTAssertGreaterThan(ranked[0].score, ranked[1].score)
+    }
+
     func testTieBreakPrefersShorterTargetThenLowerID() {
         let windows = [
             window(id: 20, app: "Code"),

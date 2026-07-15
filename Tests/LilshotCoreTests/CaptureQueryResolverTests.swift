@@ -61,9 +61,10 @@ final class CaptureQueryResolverTests: XCTestCase {
     }
 
     func testAmbiguousQueryReturnsRankedCandidates() throws {
+        // Equal-length cross-app targets → equal coverage → score tie → ambiguous.
         let windows = [
-            window(id: 10, app: "Code"),
-            window(id: 5, app: "Code Editor"),
+            window(id: 10, app: "Code One"),
+            window(id: 5, app: "Code Two"),
             window(id: 30, app: "Safari"),
         ]
 
@@ -72,7 +73,7 @@ final class CaptureQueryResolverTests: XCTestCase {
         guard case .ambiguous(let candidates) = result else {
             return XCTFail("expected ambiguous")
         }
-        XCTAssertEqual(candidates.map(\.window.id), [10, 5])
+        XCTAssertEqual(candidates.map(\.window.id), [5, 10])
         XCTAssertEqual(candidates[0].score, candidates[1].score)
     }
 
@@ -119,9 +120,10 @@ final class CaptureQueryResolverTests: XCTestCase {
     }
 
     func testCrossAppTieRemainsAmbiguous() throws {
+        // Equal-length cross-app targets keep scores tied; same-app preference must not apply.
         let windows = [
-            window(id: 10, app: "Code", title: "main.swift"),
-            window(id: 5, app: "Code Editor", title: "main.swift"),
+            window(id: 10, app: "Code One", title: "main.swift"),
+            window(id: 5, app: "Code Two", title: "main.swift"),
         ]
 
         let result = try CaptureQueryResolver.resolve(query: "code", in: windows)
@@ -129,7 +131,7 @@ final class CaptureQueryResolverTests: XCTestCase {
         guard case .ambiguous(let candidates) = result else {
             return XCTFail("expected ambiguous")
         }
-        XCTAssertEqual(Set(candidates.map(\.window.appName)), Set(["Code", "Code Editor"]))
+        XCTAssertEqual(Set(candidates.map(\.window.appName)), Set(["Code One", "Code Two"]))
         XCTAssertEqual(candidates[0].score, candidates[1].score)
     }
 

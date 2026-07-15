@@ -73,11 +73,17 @@ public enum FuzzyMatcher {
         guard !query.isEmpty, !target.isEmpty else { return nil }
         guard let match = subsequenceMatch(query: query, in: target) else { return nil }
 
+        let queryLength = query.count
+        let targetLength = target.count
+
         var score = 10
         if match.isPrefix { score += 40 }
         score += match.wordBoundaryHits * 15
         score += match.maxConsecutiveRun * 5
         score += max(0, 20 - match.span)
+        if targetLength > 0 {
+            score += (queryLength * 30) / targetLength
+        }
         return score
     }
 
