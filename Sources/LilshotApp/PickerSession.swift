@@ -58,10 +58,10 @@ final class PickerSession: ObservableObject {
     }
 
     func resetForClose() {
-        previewStore.clear()
-        query = ""
         model.setQuery("")
+        query = ""
         publish()
+        previewStore.clear()
     }
 
     func refreshPreviews(visibleRange: Range<Int>? = nil) {

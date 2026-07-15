@@ -49,6 +49,7 @@ final class KeyCatcherView: NSView {
         removeMonitor()
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
+            guard self.window?.isVisible == true else { return event }
             switch event.keyCode {
             case 126: // up
                 self.onUp?()
