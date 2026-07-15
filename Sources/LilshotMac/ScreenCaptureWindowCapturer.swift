@@ -11,7 +11,7 @@ public struct ScreenCaptureWindowCapturer: WindowCapturing {
         self.cache = cache
     }
 
-    public func captureImage(windowID: UInt32, scale: Double) async throws -> CGImage {
+    public func captureImage(windowID: UInt32, relativeScale: Double) async throws -> CGImage {
         // SCScreenshotManager requires a WindowServer connection; a bare CLI
         // process has none until NSApplication is touched on the main actor.
         _ = await MainActor.run { NSApplication.shared }
@@ -25,9 +25,13 @@ public struct ScreenCaptureWindowCapturer: WindowCapturing {
 
         let filter = SCContentFilter(desktopIndependentWindow: window)
         let config = SCStreamConfiguration()
-        let safeScale = max(scale, 0.1)
-        config.width = max(1, Int((window.frame.width * safeScale).rounded()))
-        config.height = max(1, Int((window.frame.height * safeScale).rounded()))
+        let pixels = CaptureDimensions.pixelSize(
+            pointSize: window.frame.size,
+            pointPixelScale: Double(filter.pointPixelScale),
+            relativeScale: relativeScale
+        )
+        config.width = pixels.width
+        config.height = pixels.height
         config.showsCursor = false
         config.captureResolution = .best
 

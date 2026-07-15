@@ -36,15 +36,18 @@ public protocol WindowProviding: Sendable {
 }
 
 public protocol WindowCapturing: Sendable {
-    /// Captures a window at `scale` relative to its point size (e.g. 2 for retina, 0.5 for previews).
-    func captureImage(windowID: UInt32, scale: Double) async throws -> CGImage
+    /// Captures a window at native pixel scale times `relativeScale`
+    /// (1.0 = native pixels, 0.5 = half-resolution preview).
+    func captureImage(windowID: UInt32, relativeScale: Double) async throws -> CGImage
 }
 
 public protocol DisplayCapturing: Sendable {
-    /// Captures the main display at `scale` relative to its point size.
-    func captureMainDisplay(scale: Double) async throws -> CGImage
+    /// Captures the main display at native pixel scale times `relativeScale`
+    /// (1.0 = native pixels).
+    func captureMainDisplay(relativeScale: Double) async throws -> CGImage
 
     /// Captures a region of the main display. `rect` is in ScreenCaptureKit
-    /// point space (origin top-left of the display).
-    func captureMainDisplayRegion(_ rect: CGRect, scale: Double) async throws -> CGImage
+    /// point space (origin top-left of the display). Output pixels are
+    /// `rect.size * filter.pointPixelScale * relativeScale`.
+    func captureMainDisplayRegion(_ rect: CGRect, relativeScale: Double) async throws -> CGImage
 }

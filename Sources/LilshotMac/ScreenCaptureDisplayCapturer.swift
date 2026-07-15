@@ -11,18 +11,18 @@ public struct ScreenCaptureDisplayCapturer: DisplayCapturing {
         self.cache = cache
     }
 
-    public func captureMainDisplay(scale: Double) async throws -> CGImage {
-        try await capture(region: nil, scale: scale)
+    public func captureMainDisplay(relativeScale: Double) async throws -> CGImage {
+        try await capture(region: nil, relativeScale: relativeScale)
     }
 
-    public func captureMainDisplayRegion(_ rect: CGRect, scale: Double) async throws -> CGImage {
+    public func captureMainDisplayRegion(_ rect: CGRect, relativeScale: Double) async throws -> CGImage {
         guard rect.width >= 1, rect.height >= 1 else {
             throw CaptureError.emptyRegion
         }
-        return try await capture(region: rect, scale: scale)
+        return try await capture(region: rect, relativeScale: relativeScale)
     }
 
-    private func capture(region: CGRect?, scale: Double) async throws -> CGImage {
+    private func capture(region: CGRect?, relativeScale: Double) async throws -> CGImage {
         // SCScreenshotManager needs a WindowServer connection.
         _ = await MainActor.run { NSApplication.shared }
 
@@ -35,18 +35,18 @@ public struct ScreenCaptureDisplayCapturer: DisplayCapturing {
 
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let config = SCStreamConfiguration()
-        let safeScale = max(scale, 0.1)
-
-        let captureSize: CGSize
+        let pointSize = region?.size ?? display.frame.size
         if let region {
             config.sourceRect = region
-            captureSize = region.size
-        } else {
-            captureSize = display.frame.size
         }
 
-        config.width = max(1, Int((captureSize.width * safeScale).rounded()))
-        config.height = max(1, Int((captureSize.height * safeScale).rounded()))
+        let pixels = CaptureDimensions.pixelSize(
+            pointSize: pointSize,
+            pointPixelScale: Double(filter.pointPixelScale),
+            relativeScale: relativeScale
+        )
+        config.width = pixels.width
+        config.height = pixels.height
         config.showsCursor = false
         config.captureResolution = .best
 
