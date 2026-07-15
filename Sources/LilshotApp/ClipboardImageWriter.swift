@@ -1,23 +1,20 @@
 import AppKit
 import CoreGraphics
-import ImageIO
-import UniformTypeIdentifiers
+import LilshotMac
 
 enum ClipboardImageWriter {
     enum WriteError: LocalizedError {
-        case pngEncodeFailed
         case tiffEncodeFailed
 
         var errorDescription: String? {
             switch self {
-            case .pngEncodeFailed: return "Failed to encode PNG for clipboard"
             case .tiffEncodeFailed: return "Failed to encode TIFF for clipboard"
             }
         }
     }
 
     static func write(_ image: CGImage) throws {
-        let png = try pngData(from: image)
+        let png = try PNGImageWriter.data(from: image)
         let nsImage = NSImage(
             cgImage: image,
             size: NSSize(width: image.width, height: image.height)
@@ -30,22 +27,5 @@ enum ClipboardImageWriter {
         pasteboard.clearContents()
         pasteboard.setData(png, forType: .png)
         pasteboard.setData(tiff, forType: .tiff)
-    }
-
-    private static func pngData(from image: CGImage) throws -> Data {
-        let data = NSMutableData()
-        guard let destination = CGImageDestinationCreateWithData(
-            data,
-            UTType.png.identifier as CFString,
-            1,
-            nil
-        ) else {
-            throw WriteError.pngEncodeFailed
-        }
-        CGImageDestinationAddImage(destination, image, nil)
-        guard CGImageDestinationFinalize(destination) else {
-            throw WriteError.pngEncodeFailed
-        }
-        return data as Data
     }
 }
