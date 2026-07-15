@@ -10,11 +10,14 @@ final class PickerPanelController {
     private var panel: NSPanel?
     private var isCapturing = false
     private var showGeneration: UInt64 = 0
-    private var lastCapture = LastCaptureStore()
+    private var lastCapture: LastCaptureStore
 
     init(provider: any WindowProviding, capturer: any WindowCapturing) {
         self.capturer = capturer
         self.session = PickerSession(provider: provider, capturer: capturer)
+        self.lastCapture = LastCaptureStore(
+            persistence: UserDefaultsLastCapturePersistence()
+        )
     }
 
     func toggle() {
@@ -30,6 +33,7 @@ final class PickerPanelController {
             try ScreenRecordingPermission.ensureGranted()
         } catch {
             fputs("\(error.localizedDescription)\n", stderr)
+            CaptureFeedback.playError()
             return
         }
 
@@ -68,10 +72,13 @@ final class PickerPanelController {
             do {
                 let image = try await capturer.captureImage(windowID: last.windowID, scale: 2)
                 try ClipboardImageWriter.write(image)
+                CaptureFeedback.playSuccess()
             } catch ScreenCaptureWindowCapturer.CaptureError.windowNotFound {
+                // No sound — falls through to picker like missing history.
                 show()
             } catch {
                 fputs("re-capture failed: \(error.localizedDescription)\n", stderr)
+                CaptureFeedback.playError()
             }
         }
     }
@@ -116,9 +123,11 @@ final class PickerPanelController {
                 let image = try await capturer.captureImage(windowID: window.id, scale: 2)
                 try ClipboardImageWriter.write(image)
                 lastCapture.remember(windowID: window.id, appName: window.appName)
+                CaptureFeedback.playSuccess()
                 close()
             } catch {
                 fputs("capture failed: \(error.localizedDescription)\n", stderr)
+                CaptureFeedback.playError()
             }
         }
     }

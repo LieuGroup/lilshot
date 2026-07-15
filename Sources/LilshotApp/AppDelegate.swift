@@ -53,7 +53,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { @MainActor in self?.beginRegionCapture() }
         }
         do {
-            try monitor.register()
+            let failures = try monitor.register()
+            if !failures.isEmpty {
+                fputs(HotkeyMonitor.failureSummary(failures) + "\n", stderr)
+            }
         } catch {
             fputs("hotkey registration failed: \(error.localizedDescription)\n", stderr)
         }
@@ -71,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try ScreenRecordingPermission.ensureGranted()
         } catch {
             fputs("\(error.localizedDescription)\n", stderr)
+            CaptureFeedback.playError()
             return
         }
         isDisplayCapturing = true
@@ -79,8 +83,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             do {
                 let image = try await displayCapturer.captureMainDisplay(scale: 2)
                 try ClipboardImageWriter.write(image)
+                CaptureFeedback.playSuccess()
+                if let frame = NSScreen.main?.frame {
+                    CaptureFeedback.flash(over: frame)
+                }
             } catch {
                 fputs("fullscreen capture failed: \(error.localizedDescription)\n", stderr)
+                CaptureFeedback.playError()
             }
         }
     }
@@ -91,6 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try ScreenRecordingPermission.ensureGranted()
         } catch {
             fputs("\(error.localizedDescription)\n", stderr)
+            CaptureFeedback.playError()
             return
         }
         picker?.close()
@@ -110,8 +120,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             do {
                 let image = try await displayCapturer.captureMainDisplayRegion(sckRect, scale: 2)
                 try ClipboardImageWriter.write(image)
+                CaptureFeedback.playSuccess()
+                CaptureFeedback.flash(over: appKitRect)
             } catch {
                 fputs("region capture failed: \(error.localizedDescription)\n", stderr)
+                CaptureFeedback.playError()
             }
         }
     }

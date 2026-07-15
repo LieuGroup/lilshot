@@ -1,5 +1,12 @@
 import AppKit
 import Carbon.HIToolbox
+import LilshotCore
+
+/// One failed `RegisterEventHotKey` attempt (label + OSStatus).
+struct HotkeyRegistrationFailure: Equatable, Sendable {
+    let label: String
+    let status: OSStatus
+}
 
 /// Global hotkeys via Carbon `RegisterEventHotKey` — no third-party deps.
 /// ⌥⇧S picker · ⌥⇧R re-capture · ⌥⇧F fullscreen · ⌥⇧A region.
@@ -21,7 +28,10 @@ final class HotkeyMonitor: @unchecked Sendable {
     private lazy var fullscreenHotKeyID = EventHotKeyID(signature: signature, id: 3)
     private lazy var regionHotKeyID = EventHotKeyID(signature: signature, id: 4)
 
-    func register() throws {
+    /// Installs the handler, then registers each hotkey independently.
+    /// Returns failures for keys that did not register; does not abandon siblings.
+    @discardableResult
+    func register() throws -> [HotkeyRegistrationFailure] {
         unregister()
 
         var handlerRef: EventHandlerRef?
@@ -67,10 +77,12 @@ final class HotkeyMonitor: @unchecked Sendable {
         self.handlerRef = handlerRef
 
         let modifiers = UInt32(optionKey | shiftKey)
-        try registerKey(UInt32(kVK_ANSI_S), modifiers, pickHotKeyID, &pickHotKeyRef, "⌥⇧S")
-        try registerKey(UInt32(kVK_ANSI_R), modifiers, recaptureHotKeyID, &recaptureHotKeyRef, "⌥⇧R")
-        try registerKey(UInt32(kVK_ANSI_F), modifiers, fullscreenHotKeyID, &fullscreenHotKeyRef, "⌥⇧F")
-        try registerKey(UInt32(kVK_ANSI_A), modifiers, regionHotKeyID, &regionHotKeyRef, "⌥⇧A")
+        var failures: [HotkeyRegistrationFailure] = []
+        attemptKey(UInt32(kVK_ANSI_S), modifiers, pickHotKeyID, &pickHotKeyRef, "⌥⇧S", &failures)
+        attemptKey(UInt32(kVK_ANSI_R), modifiers, recaptureHotKeyID, &recaptureHotKeyRef, "⌥⇧R", &failures)
+        attemptKey(UInt32(kVK_ANSI_F), modifiers, fullscreenHotKeyID, &fullscreenHotKeyRef, "⌥⇧F", &failures)
+        attemptKey(UInt32(kVK_ANSI_A), modifiers, regionHotKeyID, &regionHotKeyRef, "⌥⇧A", &failures)
+        return failures
     }
 
     func unregister() {
@@ -91,13 +103,14 @@ final class HotkeyMonitor: @unchecked Sendable {
         unregister()
     }
 
-    private func registerKey(
+    private func attemptKey(
         _ keyCode: UInt32,
         _ modifiers: UInt32,
         _ id: EventHotKeyID,
         _ ref: inout EventHotKeyRef?,
-        _ label: String
-    ) throws {
+        _ label: String,
+        _ failures: inout [HotkeyRegistrationFailure]
+    ) {
         var hotKeyRef: EventHotKeyRef?
         let registerStatus = RegisterEventHotKey(
             keyCode,
@@ -108,23 +121,28 @@ final class HotkeyMonitor: @unchecked Sendable {
             &hotKeyRef
         )
         guard registerStatus == noErr else {
-            unregister()
-            throw HotkeyError.register(label, registerStatus)
+            fputs("hotkey \(label) failed: OSStatus \(registerStatus)\n", stderr)
+            failures.append(HotkeyRegistrationFailure(label: label, status: registerStatus))
+            return
         }
         ref = hotKeyRef
     }
 
     enum HotkeyError: LocalizedError {
         case installHandler(OSStatus)
-        case register(String, OSStatus)
 
         var errorDescription: String? {
             switch self {
             case .installHandler(let status):
                 return "Failed to install hotkey handler (OSStatus \(status))"
-            case .register(let label, let status):
-                return "Failed to register \(label) hotkey (OSStatus \(status))"
             }
         }
+    }
+
+    /// Readable one-line summary for AppDelegate logging.
+    static func failureSummary(_ failures: [HotkeyRegistrationFailure]) -> String {
+        HotkeyFailureFormatting.summary(
+            labelsAndStatuses: failures.map { ($0.label, $0.status) }
+        )
     }
 }
