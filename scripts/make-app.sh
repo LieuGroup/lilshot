@@ -27,7 +27,7 @@ mkdir -p "$MACOS" "$RESOURCES"
 cp "$BIN" "$MACOS/$BINARY_NAME"
 chmod +x "$MACOS/$BINARY_NAME"
 
-cp "$ROOT/brand/appicon/lilshot.icns" "$RESOURCES/lilshot.icns"
+cp "$ROOT/assets/appicon/lilshot.icns" "$RESOURCES/lilshot.icns"
 cp "$ROOT/assets/menubar-icon.png" "$RESOURCES/menubar-icon.png"
 cp "$ROOT/assets/menubar-icon@2x.png" "$RESOURCES/menubar-icon@2x.png"
 
