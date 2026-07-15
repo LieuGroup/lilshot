@@ -2,7 +2,7 @@ import Foundation
 
 /// Pure picker state: query, ranked rows, and wrapped selection.
 public struct PickerViewModel: Equatable, Sendable {
-    private var baseWindows: [WindowInfo]
+    private let baseWindows: [WindowInfo]
 
     public private(set) var query: String
     public private(set) var rows: [WindowInfo]
@@ -45,15 +45,5 @@ public struct PickerViewModel: Equatable, Sendable {
         let count = rows.count
         // Positive modulo so negative deltas wrap cleanly.
         selectedIndex = ((selectedIndex + delta) % count + count) % count
-    }
-
-    /// Replace the underlying window list (e.g. after a fresh enumerate).
-    public mutating func replaceWindows(_ windows: [WindowInfo]) {
-        let previousID = selectedWindow?.id
-        baseWindows = WindowNoiseFilter.apply(to: windows)
-        setQuery(query)
-        if let previousID, let idx = rows.firstIndex(where: { $0.id == previousID }) {
-            selectedIndex = idx
-        }
     }
 }
