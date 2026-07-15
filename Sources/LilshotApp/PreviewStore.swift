@@ -3,6 +3,7 @@ import CoreGraphics
 import LilshotCore
 
 /// Loads and caches live window previews at preview scale for the panel lifetime.
+/// At most `maxConcurrent` captures run at once; newest selection priority wins.
 @MainActor
 final class PreviewStore: ObservableObject {
     @Published private(set) var images: [UInt32: NSImage] = [:]
@@ -10,11 +11,17 @@ final class PreviewStore: ObservableObject {
 
     private let capturer: any WindowCapturing
     private let previewScale: Double
-    private var tasks: [UInt32: Task<Void, Never>] = [:]
+    private var queue: PreviewAdmissionQueue
+    private var generation: UInt64 = 0
 
-    init(capturer: any WindowCapturing, previewScale: Double = 0.5) {
+    init(
+        capturer: any WindowCapturing,
+        previewScale: Double = 0.5,
+        maxConcurrent: Int = 2
+    ) {
         self.capturer = capturer
         self.previewScale = previewScale
+        self.queue = PreviewAdmissionQueue(maxConcurrent: maxConcurrent)
     }
 
     func image(for windowID: UInt32) -> NSImage? {
@@ -26,44 +33,54 @@ final class PreviewStore: ObservableObject {
     }
 
     func clear() {
-        for task in tasks.values {
-            task.cancel()
-        }
-        tasks.removeAll()
+        generation &+= 1
+        queue.reset()
         images.removeAll()
         inFlight.removeAll()
     }
 
-    /// Kick off captures in `priority` order; skips IDs already cached or loading.
+    /// Enqueue captures in priority order (front = highest). At most two run concurrently.
     func enqueue(windowIDs: [UInt32]) {
-        for windowID in windowIDs {
-            guard images[windowID] == nil, tasks[windowID] == nil else { continue }
+        for windowID in windowIDs where images[windowID] != nil {
+            queue.markCached(windowID)
+        }
+        let needed = windowIDs.filter { images[$0] == nil }
+        guard !needed.isEmpty else { return }
+        queue.enqueue(ids: needed)
+        pump()
+    }
+
+    private func pump() {
+        while let windowID = queue.next() {
+            queue.markStarted(windowID)
             inFlight.insert(windowID)
             let capturer = self.capturer
             let scale = previewScale
-            tasks[windowID] = Task { [weak self] in
-                defer {
-                    Task { @MainActor in
-                        self?.tasks[windowID] = nil
-                        self?.inFlight.remove(windowID)
-                    }
-                }
+            let gen = generation
+            Task { [weak self] in
+                let captured: NSImage?
                 do {
                     let cgImage = try await capturer.captureImage(windowID: windowID, scale: scale)
-                    let nsImage = NSImage(
+                    captured = NSImage(
                         cgImage: cgImage,
                         size: NSSize(width: cgImage.width, height: cgImage.height)
                     )
-                    await MainActor.run {
-                        self?.images[windowID] = nsImage
-                    }
                 } catch {
-                    if !Task.isCancelled {
-                        fputs(
-                            "preview failed for window \(windowID): \(error.localizedDescription)\n",
-                            stderr
-                        )
+                    fputs(
+                        "preview failed for window \(windowID): \(error.localizedDescription)\n",
+                        stderr
+                    )
+                    captured = nil
+                }
+                await MainActor.run {
+                    guard let self, self.generation == gen else { return }
+                    if let captured {
+                        self.images[windowID] = captured
+                        self.queue.markCached(windowID)
                     }
+                    self.queue.markFinished(windowID)
+                    self.inFlight.remove(windowID)
+                    self.pump()
                 }
             }
         }
