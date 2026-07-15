@@ -28,7 +28,7 @@ bash scripts/make-app.sh
 open dist/lilshot.app
 ```
 
-Grant Screen Recording permission on first capture. Homebrew cask coming with the first tagged release.
+Grant Screen Recording permission on first capture. Homebrew cask coming with the first tagged release. Signed and notarized zips (built via `scripts/make-release.sh` with `LILSHOT_SIGN_IDENTITY` / `LILSHOT_NOTARY_*` env vars) will be attached to GitHub Releases.
 
 ## CLI
 
