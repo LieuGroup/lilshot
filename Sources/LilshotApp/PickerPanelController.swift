@@ -73,6 +73,7 @@ final class PickerPanelController {
                 let image = try await capturer.captureImage(windowID: last.windowID, relativeScale: 1.0)
                 try ClipboardImageWriter.write(image)
                 CaptureFeedback.playSuccess()
+                EditorWindowController.shared.present(image)
             } catch ScreenCaptureWindowCapturer.CaptureError.windowNotFound {
                 // No sound — falls through to picker like missing history.
                 show()
@@ -125,6 +126,7 @@ final class PickerPanelController {
                 lastCapture.remember(windowID: window.id, appName: window.appName)
                 CaptureFeedback.playSuccess()
                 close()
+                EditorWindowController.shared.present(image)
             } catch {
                 fputs("capture failed: \(error.localizedDescription)\n", stderr)
                 CaptureFeedback.playError()

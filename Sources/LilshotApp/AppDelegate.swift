@@ -87,6 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if let frame = NSScreen.main?.frame {
                     CaptureFeedback.flash(over: frame)
                 }
+                EditorWindowController.shared.present(image)
             } catch {
                 fputs("fullscreen capture failed: \(error.localizedDescription)\n", stderr)
                 CaptureFeedback.playError()
@@ -122,6 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 try ClipboardImageWriter.write(image)
                 CaptureFeedback.playSuccess()
                 CaptureFeedback.flash(over: appKitRect)
+                EditorWindowController.shared.present(image)
             } catch {
                 fputs("region capture failed: \(error.localizedDescription)\n", stderr)
                 CaptureFeedback.playError()
