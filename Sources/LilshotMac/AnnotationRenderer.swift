@@ -31,14 +31,14 @@ public enum AnnotationRenderer {
         context.scaleBy(x: 1, y: -1)
 
         for annotation in annotations {
-            draw(annotation, in: context)
+            draw(annotation, in: context, base: base)
         }
 
         return context.makeImage()
     }
 
     /// Draw a single annotation into an already top-left-oriented context.
-    public static func draw(_ annotation: Annotation, in context: CGContext) {
+    public static func draw(_ annotation: Annotation, in context: CGContext, base: CGImage? = nil) {
         switch annotation {
         case let .arrow(from, to, color, strokeWidth):
             drawArrow(from: from, to: to, color: color, strokeWidth: strokeWidth, in: context)
@@ -49,9 +49,12 @@ public enum AnnotationRenderer {
         case let .text(origin, string, fontSize, color):
             drawText(string, at: origin, fontSize: fontSize, color: color, in: context)
         case let .blur(rect):
-            // Placeholder dim until pixelate blur lands.
-            context.setFillColor(AnnotationColor.black.withAlpha(0.35).cgColor)
-            context.fill(rect)
+            if let base {
+                AnnotationPixellate.draw(rect, from: base, in: context)
+            } else {
+                context.setFillColor(AnnotationColor.black.withAlpha(0.35).cgColor)
+                context.fill(rect)
+            }
         case let .stepNumber(center, index, color):
             drawStep(center: center, index: index, color: color, in: context)
         }
