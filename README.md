@@ -12,9 +12,9 @@ Every screenshot tool makes you *find* the window first. lilshot doesn't: press 
 
 - **Window picker** (⌥⇧S) — fuzzy search across every window on every Space, large live preview, Enter captures to clipboard
 - **Re-capture last** (⌥⇧R) — the same window again, one keystroke, no picker
-- **Region** (⌥⇧A) and **fullscreen** (⌥⇧F) — with shutter sound and flash
-- **Built-in editor** — Shottr-style: arrow, rectangle, step numbers, text, pixelate-blur, crop; the original hits your clipboard instantly, annotations replace it on Cmd+C
-- **Agent-friendly CLI** — `lilshot list --json` and `lilshot capture <query>`; built for feeding screenshots to AI coding agents
+- **Region** (⌥⇧A), **region OCR** (⌥⇧O), and **fullscreen** (⌥⇧F) — with native-scale capture and feedback
+- **Built-in editor** — Shottr-style: arrow, rectangle, step numbers, text, pixelate-blur, crop, and Copy text (⌘⇧T); the original hits your clipboard instantly, annotations replace it on Cmd+C
+- **Agent-friendly CLI** — `lilshot list --json`, `lilshot capture <query>`, and `lilshot ocr <query>`; clean stdout for agents
 - Native pixel scale on every display (1x ultrawides and retina both come out exactly right)
 
 ## Install
@@ -37,12 +37,14 @@ swift build -c release
 ./.build/release/lilshot list --json     # every window, JSON for scripts/agents
 ./.build/release/lilshot capture chrome  # fuzzy match → PNG
 ./.build/release/lilshot capture 51 -o shot.png
+./.build/release/lilshot ocr chrome      # fuzzy match → text on stdout
+./.build/release/lilshot ocr 51
 ```
 
 ## Development
 
 ```bash
-swift test            # 121 tests, core logic is TDD'd
+swift test            # 127 tests, core logic is TDD'd
 swift run LilshotApp  # run the menu bar app without bundling
 ```
 
