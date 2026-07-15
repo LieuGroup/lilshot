@@ -70,7 +70,7 @@ final class PickerPanelController {
         Task {
             defer { isCapturing = false }
             do {
-                let image = try await capturer.captureImage(windowID: last.windowID, scale: 2)
+                let image = try await capturer.captureImage(windowID: last.windowID, relativeScale: 1.0)
                 try ClipboardImageWriter.write(image)
                 CaptureFeedback.playSuccess()
             } catch ScreenCaptureWindowCapturer.CaptureError.windowNotFound {
@@ -120,7 +120,7 @@ final class PickerPanelController {
         Task {
             defer { isCapturing = false }
             do {
-                let image = try await capturer.captureImage(windowID: window.id, scale: 2)
+                let image = try await capturer.captureImage(windowID: window.id, relativeScale: 1.0)
                 try ClipboardImageWriter.write(image)
                 lastCapture.remember(windowID: window.id, appName: window.appName)
                 CaptureFeedback.playSuccess()

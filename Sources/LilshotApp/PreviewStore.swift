@@ -63,12 +63,15 @@ final class PreviewStore: ObservableObject {
             queue.markStarted(windowID)
             inFlight.insert(windowID)
             let capturer = self.capturer
-            let scale = previewScale
+            let relativeScale = previewScale
             let gen = generation
             Task { [weak self] in
                 let captured: NSImage?
                 do {
-                    let cgImage = try await capturer.captureImage(windowID: windowID, scale: scale)
+                    let cgImage = try await capturer.captureImage(
+                        windowID: windowID,
+                        relativeScale: relativeScale
+                    )
                     captured = NSImage(
                         cgImage: cgImage,
                         size: NSSize(width: cgImage.width, height: cgImage.height)

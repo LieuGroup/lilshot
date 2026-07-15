@@ -81,7 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task {
             defer { isDisplayCapturing = false }
             do {
-                let image = try await displayCapturer.captureMainDisplay(scale: 2)
+                let image = try await displayCapturer.captureMainDisplay(relativeScale: 1.0)
                 try ClipboardImageWriter.write(image)
                 CaptureFeedback.playSuccess()
                 if let frame = NSScreen.main?.frame {
@@ -118,7 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task {
             defer { isDisplayCapturing = false }
             do {
-                let image = try await displayCapturer.captureMainDisplayRegion(sckRect, scale: 2)
+                let image = try await displayCapturer.captureMainDisplayRegion(sckRect, relativeScale: 1.0)
                 try ClipboardImageWriter.write(image)
                 CaptureFeedback.playSuccess()
                 CaptureFeedback.flash(over: appKitRect)

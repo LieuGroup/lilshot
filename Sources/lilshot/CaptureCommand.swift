@@ -49,7 +49,7 @@ struct CaptureCommand: AsyncParsableCommand {
             let path = output ?? CaptureOutputPath.default(for: window)
             let capturer = ScreenCaptureWindowCapturer()
             do {
-                let image = try await capturer.captureImage(windowID: window.id, scale: 2)
+                let image = try await capturer.captureImage(windowID: window.id, relativeScale: 1.0)
                 try PNGWriter.write(image, to: path)
                 print(path)
             } catch {
