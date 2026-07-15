@@ -27,24 +27,20 @@ public enum FuzzyMatcher {
             let appScore = scoreMatch(query: normalizedQuery, in: normalize(window.appName))
             let titleScore = scoreMatch(query: normalizedQuery, in: normalize(window.title))
 
-            let best: (score: Int, targetLength: Int)?
+            let bestScore: Int?
             if let app = appScore, let title = titleScore {
-                let withAppBonus = app.score + appNameBonus
-                if withAppBonus >= title.score {
-                    best = (withAppBonus, app.targetLength)
-                } else {
-                    best = title
-                }
+                let withAppBonus = app + appNameBonus
+                bestScore = withAppBonus >= title ? withAppBonus : title
             } else if let app = appScore {
-                best = (app.score + appNameBonus, app.targetLength)
+                bestScore = app + appNameBonus
             } else if let title = titleScore {
-                best = title
+                bestScore = title
             } else {
-                best = nil
+                bestScore = nil
             }
 
-            if let best {
-                scored.append(ScoredWindow(window: window, score: best.score))
+            if let bestScore {
+                scored.append(ScoredWindow(window: window, score: bestScore))
             }
         }
 
@@ -73,7 +69,7 @@ public enum FuzzyMatcher {
         return Int.max
     }
 
-    private static func scoreMatch(query: String, in target: String) -> (score: Int, targetLength: Int)? {
+    private static func scoreMatch(query: String, in target: String) -> Int? {
         guard !query.isEmpty, !target.isEmpty else { return nil }
         guard let match = subsequenceMatch(query: query, in: target) else { return nil }
 
@@ -82,8 +78,7 @@ public enum FuzzyMatcher {
         score += match.wordBoundaryHits * 15
         score += match.maxConsecutiveRun * 5
         score += max(0, 20 - match.span)
-
-        return (score, target.count)
+        return score
     }
 
     private struct MatchDetails {

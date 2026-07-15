@@ -2,11 +2,11 @@ import Foundation
 import LilshotCore
 
 enum CaptureOutputPath {
-    static func `default`(for window: WindowInfo, now: Date = Date()) -> String {
+    static func `default`(for window: WindowInfo) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd-HHmmss"
-        let stamp = formatter.string(from: now)
+        let stamp = formatter.string(from: Date())
         let slug = slugify(window.appName)
         let desktop = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Desktop", isDirectory: true)

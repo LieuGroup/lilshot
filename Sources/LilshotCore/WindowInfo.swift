@@ -1,5 +1,4 @@
 import CoreGraphics
-import Foundation
 
 public struct WindowInfo: Equatable, Sendable {
     public let id: UInt32
