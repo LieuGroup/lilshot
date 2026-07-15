@@ -49,7 +49,7 @@ public enum AnnotationRenderer {
         case let .text(origin, string, fontSize, color):
             drawText(string, at: origin, fontSize: fontSize, color: color, in: context)
         case let .blur(rect):
-            // Round 3 replaces this placeholder with CIPixellate.
+            // Placeholder dim until pixelate blur lands.
             context.setFillColor(AnnotationColor.black.withAlpha(0.35).cgColor)
             context.fill(rect)
         case let .stepNumber(center, index, color):

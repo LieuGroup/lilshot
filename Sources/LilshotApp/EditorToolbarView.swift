@@ -1,7 +1,7 @@
 import AppKit
 import LilshotCore
 
-/// Top toolbar: tool buttons (crop active in Round 1) and color swatches.
+/// Top toolbar: draw/crop tools and the five-color palette.
 final class EditorToolbarView: NSView {
     var onSelectTool: ((EditorTool) -> Void)?
     var onSelectColor: ((AnnotationColor) -> Void)?
@@ -101,10 +101,11 @@ final class EditorToolbarView: NSView {
     }
 
     private func refreshToolChrome() {
+        let active: Set<EditorTool> = [.arrow, .rect, .text, .stepNumber, .crop]
         for (tool, button) in toolButtons {
             button.state = (tool == selectedTool) ? .on : .off
-            // Round 1: only crop is interactive; others still switch highlight for skeleton.
-            button.isEnabled = true
+            // Select/blur stay visible but inactive until manipulation tools land.
+            button.isEnabled = active.contains(tool)
         }
     }
 

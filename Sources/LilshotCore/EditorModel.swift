@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// Active editor tool. Draw tools + crop are Round 2; select/blur in Round 3.
+/// Active editor tool (select/blur reserved for later manipulation work).
 public enum EditorTool: Equatable, Sendable {
     case select
     case arrow

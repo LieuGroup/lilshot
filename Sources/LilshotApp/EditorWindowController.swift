@@ -2,7 +2,7 @@ import AppKit
 import LilshotCore
 import LilshotMac
 
-/// Single reusable editor window: crop, copy, save, undo/redo.
+/// Single reusable editor window: draw tools, crop, copy, save, undo/redo.
 @MainActor
 final class EditorWindowController: NSWindowController, NSWindowDelegate {
     static let shared = EditorWindowController()
@@ -15,14 +15,11 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     private var imageRedo: [CGImage] = []
     private var keyMonitor: Any?
 
-    private init() {
-        super.init(window: nil)
-    }
+    private init() { super.init(window: nil) }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    /// Show or replace the editor contents with a new capture.
     func present(_ image: CGImage) {
         self.image = image
         model = EditorModel(canvasSize: CGSize(width: image.width, height: image.height))
@@ -37,8 +34,6 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         showWindow(nil)
         window?.makeFirstResponder(canvas)
     }
-
-    // MARK: - Actions (responder chain / menu)
 
     @objc func copy(_ sender: Any?) {
         guard let flat = flattenedImage() else { return }
@@ -95,8 +90,6 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         syncViews()
     }
 
-    // MARK: - Private
-
     private func makeWindow() -> NSWindow {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 900, height: 640),
@@ -117,14 +110,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
 
         let canvas = EditorCanvasView(frame: .zero)
         canvas.translatesAutoresizingMaskIntoConstraints = false
-        canvas.onCropDraftChanged = { [weak self] a, b in
-            self?.model.setCropDraft(from: a, to: b)
-            self?.syncViews()
-        }
-        canvas.onCropDraftCleared = { [weak self] in
-            self?.model.clearCropDraft()
-            self?.syncViews()
-        }
+        wireCanvas(canvas)
         self.canvas = canvas
 
         let root = NSView(frame: .zero)
@@ -144,12 +130,46 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         return window
     }
 
+    private func wireCanvas(_ canvas: EditorCanvasView) {
+        canvas.onCropDraftChanged = { [weak self] a, b in
+            self?.model.setCropDraft(from: a, to: b)
+            self?.syncViews()
+        }
+        canvas.onCropDraftCleared = { [weak self] in
+            self?.model.clearCropDraft()
+            self?.syncViews()
+        }
+        canvas.onCommitArrow = { [weak self] a, b in
+            self?.model.addArrow(from: a, to: b)
+            self?.syncViews()
+        }
+        canvas.onCommitRect = { [weak self] a, b in
+            self?.model.addRect(from: a, to: b)
+            self?.syncViews()
+        }
+        canvas.onCommitStep = { [weak self] point in
+            self?.model.addStepNumber(at: point)
+            self?.syncViews()
+        }
+        canvas.onCommitText = { [weak self] origin, string in
+            self?.model.addText(at: origin, string: string)
+            self?.syncViews()
+        }
+    }
+
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, event.window === self.window else { return event }
-            if event.keyCode == 36 { self.applyCrop(nil); return nil } // Return
-            if event.keyCode == 53 { self.window?.performClose(nil); return nil } // Esc
+            if self.canvas?.isEditingText == true { return event }
+            if event.keyCode == 36, self.model.tool == .crop {
+                self.applyCrop(nil)
+                return nil
+            }
+            if event.keyCode == 53 {
+                self.window?.performClose(nil)
+                return nil
+            }
             return event
         }
     }

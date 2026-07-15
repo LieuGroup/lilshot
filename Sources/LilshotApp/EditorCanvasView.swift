@@ -1,8 +1,7 @@
 import AppKit
 import LilshotCore
-import LilshotMac
 
-/// Zoom-to-fit canvas with crop drag (dimmed outside, marching ants).
+/// Zoom-to-fit canvas: crop, arrow/rect drag preview, step click, text input.
 final class EditorCanvasView: NSView {
     var image: CGImage? {
         didSet { needsDisplay = true }
@@ -14,20 +13,32 @@ final class EditorCanvasView: NSView {
 
     var onCropDraftChanged: ((CGPoint, CGPoint) -> Void)?
     var onCropDraftCleared: (() -> Void)?
+    var onCommitArrow: ((CGPoint, CGPoint) -> Void)?
+    var onCommitRect: ((CGPoint, CGPoint) -> Void)?
+    var onCommitStep: ((CGPoint) -> Void)?
+    var onCommitText: ((CGPoint, String) -> Void)?
 
     private var dragAnchor: CGPoint?
+    private var draftAnnotation: Annotation?
     private var dashPhase: CGFloat = 0
     private var antsTimer: Timer?
+    private let textSession = EditorTextInputSession()
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
+
+    var isEditingText: Bool { textSession.isActive }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if window != nil {
             startAnts()
+            textSession.onCommit = { [weak self] origin, string in
+                self?.onCommitText?(origin, string)
+            }
         } else {
             stopAnts()
+            textSession.cancel()
         }
     }
 
@@ -35,31 +46,115 @@ final class EditorCanvasView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
-        guard model.tool == .crop else { return }
+        if textSession.isActive { textSession.commit(); return }
+
         let point = convert(event.locationInWindow, from: nil)
-        guard imagePoint(fromView: point) != nil else { return }
-        dragAnchor = point
+        guard let imagePt = imagePoint(fromView: point) else { return }
+
+        switch model.tool {
+        case .crop, .arrow, .rect:
+            dragAnchor = point
+        case .stepNumber:
+            onCommitStep?(imagePt)
+        case .text:
+            beginText(at: point, imageOrigin: imagePt)
+        case .select, .blur:
+            break
+        }
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard model.tool == .crop, let anchor = dragAnchor else { return }
+        guard let anchor = dragAnchor else { return }
         let cursor = convert(event.locationInWindow, from: nil)
         guard let a = imagePoint(fromView: anchor),
               let b = imagePoint(fromView: cursor)
         else { return }
-        onCropDraftChanged?(a, b)
+
+        switch model.tool {
+        case .crop:
+            onCropDraftChanged?(a, b)
+        case .arrow:
+            draftAnnotation = .arrow(
+                from: a, to: b, color: model.color, strokeWidth: model.strokeWidth
+            )
+            needsDisplay = true
+        case .rect:
+            let rect = RegionGeometry.normalizedRect(from: a, to: b)
+            draftAnnotation = .rect(rect, color: model.color, strokeWidth: model.strokeWidth)
+            needsDisplay = true
+        default:
+            break
+        }
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard model.tool == .crop, let anchor = dragAnchor else { return }
+        guard let anchor = dragAnchor else { return }
         dragAnchor = nil
         let cursor = convert(event.locationInWindow, from: nil)
-        guard let a = imagePoint(fromView: anchor),
-              let b = imagePoint(fromView: cursor)
-        else {
-            onCropDraftCleared?()
-            return
+        let a = imagePoint(fromView: anchor)
+        let b = imagePoint(fromView: cursor)
+        let draft = draftAnnotation
+        draftAnnotation = nil
+        needsDisplay = true
+
+        switch model.tool {
+        case .crop:
+            finishCrop(from: a, to: b)
+        case .arrow:
+            if let a, let b, case .arrow = draft { onCommitArrow?(a, b) }
+        case .rect:
+            if let a, let b, case .rect = draft { onCommitRect?(a, b) }
+        default:
+            break
         }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.controlBackgroundColor.setFill()
+        bounds.fill()
+        guard let image, let context = NSGraphicsContext.current?.cgContext else { return }
+        let imageSize = CGSize(width: image.width, height: image.height)
+        let fitted = EditorGeometry.fittedImageRect(imageSize: imageSize, in: bounds.size)
+        context.saveGState()
+        context.interpolationQuality = .high
+        context.draw(image, in: fitted)
+        let all = model.annotations + (draftAnnotation.map { [$0] } ?? [])
+        for annotation in all {
+            EditorCanvasDrawing.drawAnnotation(
+                annotation, fitted: fitted, imageSize: imageSize, viewSize: bounds.size, in: context
+            )
+        }
+        if let crop = model.cropDraft {
+            EditorCanvasDrawing.drawCropOverlay(
+                crop, imageSize: imageSize, viewSize: bounds.size,
+                bounds: bounds, dashPhase: dashPhase, in: context
+            )
+        }
+        context.restoreGState()
+    }
+
+    private func beginText(at viewPoint: CGPoint, imageOrigin: CGPoint) {
+        let scale = fitScale()
+        let fontSize = max(
+            EditorModel.defaultTextFontSize(canvasHeight: model.canvasSize.height) * scale,
+            10
+        )
+        textSession.begin(
+            at: viewPoint,
+            imageOrigin: imageOrigin,
+            fontSize: fontSize,
+            color: NSColor(
+                srgbRed: model.color.red,
+                green: model.color.green,
+                blue: model.color.blue,
+                alpha: model.color.alpha
+            ),
+            in: self
+        )
+    }
+
+    private func finishCrop(from a: CGPoint?, to b: CGPoint?) {
+        guard let a, let b else { onCropDraftCleared?(); return }
         let draft = RegionGeometry.normalizedRect(from: a, to: b)
         if draft.width < 2 || draft.height < 2 {
             onCropDraftCleared?()
@@ -68,84 +163,18 @@ final class EditorCanvasView: NSView {
         }
     }
 
-    override func draw(_ dirtyRect: NSRect) {
-        NSColor.controlBackgroundColor.setFill()
-        bounds.fill()
-
-        guard let image else { return }
-        let imageSize = CGSize(width: image.width, height: image.height)
-        let fitted = EditorGeometry.fittedImageRect(imageSize: imageSize, in: bounds.size)
-
-        guard let context = NSGraphicsContext.current?.cgContext else { return }
-        context.saveGState()
-        context.interpolationQuality = .high
-        context.draw(image, in: fitted)
-
-        for annotation in model.annotations {
-            drawAnnotation(annotation, fitted: fitted, imageSize: imageSize, in: context)
-        }
-
-        if let crop = model.cropDraft {
-            drawCropOverlay(crop, fitted: fitted, imageSize: imageSize, in: context)
-        }
-        context.restoreGState()
-    }
-
-    private func drawCropOverlay(
-        _ crop: CGRect,
-        fitted: CGRect,
-        imageSize: CGSize,
-        in context: CGContext
-    ) {
-        let viewCrop = EditorGeometry.viewRect(
-            fromImage: crop,
-            imageSize: imageSize,
-            viewSize: bounds.size
-        )
-
-        context.saveGState()
-        let dim = CGMutablePath()
-        dim.addRect(bounds)
-        dim.addRect(viewCrop)
-        context.addPath(dim)
-        context.setFillColor(NSColor.black.withAlphaComponent(0.45).cgColor)
-        context.drawPath(using: .eoFill)
-        context.restoreGState()
-
-        let path = NSBezierPath(rect: viewCrop.insetBy(dx: 0.5, dy: 0.5))
-        path.lineWidth = 1
-        let pattern: [CGFloat] = [5, 4]
-        path.setLineDash(pattern, count: pattern.count, phase: dashPhase)
-        NSColor.white.setStroke()
-        path.stroke()
-        path.setLineDash(pattern, count: pattern.count, phase: dashPhase + 4.5)
-        NSColor.black.setStroke()
-        path.stroke()
-    }
-
-    private func drawAnnotation(
-        _ annotation: Annotation,
-        fitted: CGRect,
-        imageSize: CGSize,
-        in context: CGContext
-    ) {
-        // Overlay preview: map image-space drawing into the fitted rect.
-        context.saveGState()
-        context.translateBy(x: fitted.origin.x, y: fitted.origin.y)
-        let scale = EditorGeometry.fitScale(imageSize: imageSize, viewSize: bounds.size)
-        context.scaleBy(x: scale, y: scale)
-        AnnotationRenderer.draw(annotation, in: context)
-        context.restoreGState()
-    }
-
     private func imagePoint(fromView point: CGPoint) -> CGPoint? {
         guard let image else { return nil }
         let imageSize = CGSize(width: image.width, height: image.height)
         let fitted = EditorGeometry.fittedImageRect(imageSize: imageSize, in: bounds.size)
         guard fitted.contains(point) else { return nil }
-        return EditorGeometry.imagePoint(
-            fromView: point,
-            imageSize: imageSize,
+        return EditorGeometry.imagePoint(fromView: point, imageSize: imageSize, viewSize: bounds.size)
+    }
+
+    private func fitScale() -> CGFloat {
+        guard let image else { return 1 }
+        return EditorGeometry.fitScale(
+            imageSize: CGSize(width: image.width, height: image.height),
             viewSize: bounds.size
         )
     }
