@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import ScreenCaptureKit
 
@@ -35,6 +36,24 @@ public actor ShareableContentCache {
         return try await fetch()
     }
 
+    /// Returns the display with `displayID`, reusing a warm cache when present.
+    public func display(for displayID: CGDirectDisplayID) async throws -> SCDisplay {
+        if let cached = warmContent(),
+           let display = cached.displays.first(where: { $0.displayID == displayID }) {
+            return display
+        }
+        let fresh = try await fetch()
+        guard let display = fresh.displays.first(where: { $0.displayID == displayID }) else {
+            throw ShareableContentCacheError.displayNotFound(displayID)
+        }
+        return display
+    }
+
+    /// Main display (`CGMainDisplayID`), same TTL reuse as window lookups.
+    public func mainDisplay() async throws -> SCDisplay {
+        try await display(for: CGMainDisplayID())
+    }
+
     private func warmContent() -> SCShareableContent? {
         guard let content, let fetchedAt,
               Date().timeIntervalSince(fetchedAt) < maxAge else {
@@ -56,11 +75,14 @@ public actor ShareableContentCache {
 
 public enum ShareableContentCacheError: LocalizedError {
     case windowNotFound(UInt32)
+    case displayNotFound(CGDirectDisplayID)
 
     public var errorDescription: String? {
         switch self {
         case .windowNotFound(let id):
             return "No window found with ID \(id)"
+        case .displayNotFound(let id):
+            return "No display found with ID \(id)"
         }
     }
 }
