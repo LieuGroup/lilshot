@@ -5,18 +5,21 @@ import LilshotCore
 import ScreenCaptureKit
 
 public struct ScreenCaptureWindowCapturer: WindowCapturing {
-    public init() {}
+    private let cache: ShareableContentCache
+
+    public init(cache: ShareableContentCache = .shared) {
+        self.cache = cache
+    }
 
     public func captureImage(windowID: UInt32, scale: Double) async throws -> CGImage {
         // SCScreenshotManager requires a WindowServer connection; a bare CLI
         // process has none until NSApplication is touched on the main actor.
         _ = await MainActor.run { NSApplication.shared }
 
-        let content = try await SCShareableContent.excludingDesktopWindows(
-            true,
-            onScreenWindowsOnly: false
-        )
-        guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
+        let window: SCWindow
+        do {
+            window = try await cache.window(for: windowID)
+        } catch ShareableContentCacheError.windowNotFound {
             throw CaptureError.windowNotFound(windowID)
         }
 

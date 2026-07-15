@@ -4,13 +4,14 @@ import LilshotCore
 import ScreenCaptureKit
 
 public struct ScreenCaptureWindowProvider: WindowProviding {
-    public init() {}
+    private let cache: ShareableContentCache
+
+    public init(cache: ShareableContentCache = .shared) {
+        self.cache = cache
+    }
 
     public func windows() async throws -> [WindowInfo] {
-        let content = try await SCShareableContent.excludingDesktopWindows(
-            true,
-            onScreenWindowsOnly: false
-        )
+        let content = try await cache.shareableContent()
         return content.windows.map { window in
             let pid = window.owningApplication?.processID
             let ownerIsRegularApp: Bool
