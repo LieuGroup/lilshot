@@ -13,10 +13,9 @@ final class StatusBarController: NSObject {
         super.init()
 
         if let button = statusItem.button {
-            button.image = NSImage(
-                systemSymbolName: "camera.viewfinder",
-                accessibilityDescription: "lilshot"
-            )
+            button.image = Self.menubarImage()
+            button.imagePosition = .imageOnly
+            button.toolTip = "lilshot"
         }
 
         let menu = NSMenu()
@@ -44,5 +43,33 @@ final class StatusBarController: NSObject {
 
     @objc private func quitApp() {
         onQuit()
+    }
+
+    /// Template silhouette from bundled assets (adapts to light/dark menu bar).
+    private static func menubarImage() -> NSImage {
+        let image = NSImage(size: NSSize(width: 18, height: 18))
+        if let url = Bundle.module.url(
+            forResource: "menubar-icon",
+            withExtension: "png",
+            subdirectory: "assets"
+        ),
+           let rep = NSImageRep(contentsOf: url) {
+            image.addRepresentation(rep)
+        }
+        if let url2x = Bundle.module.url(
+            forResource: "menubar-icon@2x",
+            withExtension: "png",
+            subdirectory: "assets"
+        ),
+           let data2x = try? Data(contentsOf: url2x),
+           let rep2x = NSBitmapImageRep(data: data2x) {
+            rep2x.size = NSSize(
+                width: CGFloat(rep2x.pixelsWide) / 2,
+                height: CGFloat(rep2x.pixelsHigh) / 2
+            )
+            image.addRepresentation(rep2x)
+        }
+        image.isTemplate = true
+        return image
     }
 }

@@ -32,6 +32,9 @@ let package = Package(
             dependencies: [
                 "LilshotCore",
                 "LilshotMac",
+            ],
+            resources: [
+                .copy("assets"),
             ]
         ),
         .testTarget(
