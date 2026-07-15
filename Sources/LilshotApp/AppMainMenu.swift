@@ -39,6 +39,21 @@ enum AppMainMenu {
         edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
 
+        let viewItem = NSMenuItem()
+        mainMenu.addItem(viewItem)
+        let view = NSMenu(title: "View")
+        viewItem.submenu = view
+        view.addItem(
+            withTitle: "Zoom to Fit",
+            action: #selector(EditorWindowController.zoomToFit(_:)),
+            keyEquivalent: "0"
+        )
+        view.addItem(
+            withTitle: "Actual Size",
+            action: #selector(EditorWindowController.zoomActualSize(_:)),
+            keyEquivalent: "9"
+        )
+
         NSApp.mainMenu = mainMenu
     }
 }

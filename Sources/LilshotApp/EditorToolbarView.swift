@@ -101,11 +101,9 @@ final class EditorToolbarView: NSView {
     }
 
     private func refreshToolChrome() {
-        let active: Set<EditorTool> = [.arrow, .rect, .text, .stepNumber, .crop]
         for (tool, button) in toolButtons {
             button.state = (tool == selectedTool) ? .on : .off
-            // Select/blur stay visible but inactive until manipulation tools land.
-            button.isEnabled = active.contains(tool)
+            button.isEnabled = true
         }
     }
 

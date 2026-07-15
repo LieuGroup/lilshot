@@ -2,7 +2,7 @@ import AppKit
 import LilshotCore
 import LilshotMac
 
-/// Single reusable editor window: draw tools, crop, copy, save, undo/redo.
+/// Editor window: tools, crop, copy, save, undo/redo, zoom.
 @MainActor
 final class EditorWindowController: NSWindowController, NSWindowDelegate {
     static let shared = EditorWindowController()
@@ -13,6 +13,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     private var image: CGImage?
     private var imageUndo: [CGImage] = []
     private var imageRedo: [CGImage] = []
+    private var actualSize = false
     private var keyMonitor: Any?
 
     private init() { super.init(window: nil) }
@@ -25,6 +26,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         model = EditorModel(canvasSize: CGSize(width: image.width, height: image.height))
         imageUndo = []
         imageRedo = []
+        actualSize = false
         if window == nil {
             window = makeWindow()
             window?.delegate = self
@@ -90,6 +92,16 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         syncViews()
     }
 
+    @objc func zoomToFit(_ sender: Any?) { actualSize = false; syncViews() }
+    @objc func zoomActualSize(_ sender: Any?) { actualSize = true; syncViews() }
+
+    func applyModel(_ body: (inout EditorModel) -> Void) {
+        body(&model)
+        syncViews()
+    }
+
+    func mutateModel(_ body: (inout EditorModel) -> Void) { body(&model) }
+
     private func makeWindow() -> NSWindow {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 900, height: 640),
@@ -110,7 +122,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
 
         let canvas = EditorCanvasView(frame: .zero)
         canvas.translatesAutoresizingMaskIntoConstraints = false
-        wireCanvas(canvas)
+        wireEditorCanvas(canvas)
         self.canvas = canvas
 
         let root = NSView(frame: .zero)
@@ -130,53 +142,34 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         return window
     }
 
-    private func wireCanvas(_ canvas: EditorCanvasView) {
-        canvas.onCropDraftChanged = { [weak self] a, b in
-            self?.model.setCropDraft(from: a, to: b)
-            self?.syncViews()
-        }
-        canvas.onCropDraftCleared = { [weak self] in
-            self?.model.clearCropDraft()
-            self?.syncViews()
-        }
-        canvas.onCommitArrow = { [weak self] a, b in
-            self?.model.addArrow(from: a, to: b)
-            self?.syncViews()
-        }
-        canvas.onCommitRect = { [weak self] a, b in
-            self?.model.addRect(from: a, to: b)
-            self?.syncViews()
-        }
-        canvas.onCommitStep = { [weak self] point in
-            self?.model.addStepNumber(at: point)
-            self?.syncViews()
-        }
-        canvas.onCommitText = { [weak self] origin, string in
-            self?.model.addText(at: origin, string: string)
-            self?.syncViews()
-        }
-    }
-
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, event.window === self.window else { return event }
-            if self.canvas?.isEditingText == true { return event }
-            if event.keyCode == 36, self.model.tool == .crop {
-                self.applyCrop(nil)
-                return nil
-            }
-            if event.keyCode == 53 {
-                self.window?.performClose(nil)
-                return nil
-            }
-            return event
+            return EditorWindowKeyHandling.handle(
+                event,
+                actions: EditorWindowKeyHandling.Actions(
+                    selectTool: { [weak self] tool in self?.selectTool(tool) },
+                    applyCrop: { [weak self] in self?.applyCrop(nil) },
+                    deleteSelected: { [weak self] in
+                        self?.applyModel { $0.deleteSelected() }
+                    },
+                    close: { [weak self] in self?.window?.performClose(nil) },
+                    setActualSize: { [weak self] actual in
+                        self?.actualSize = actual
+                        self?.syncViews()
+                    },
+                    isEditingText: { [weak self] in self?.canvas?.isEditingText == true },
+                    currentTool: { [weak self] in self?.model.tool ?? .crop }
+                )
+            )
         }
     }
 
     private func selectTool(_ tool: EditorTool) {
         model.selectTool(tool)
         if tool != .crop { model.clearCropDraft() }
+        if tool != .select { model.clearSelection() }
         syncViews()
     }
 
@@ -188,6 +181,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     private func syncViews() {
         canvas?.image = image
         canvas?.model = model
+        canvas?.actualSize = actualSize
         toolbar?.setTool(model.tool)
         toolbar?.setColor(model.color)
         canvas?.needsDisplay = true
