@@ -2,8 +2,10 @@ import Foundation
 import LilshotCore
 import ScreenCaptureKit
 
-struct ScreenCaptureWindowProvider: WindowProviding {
-    func windows() async throws -> [WindowInfo] {
+public struct ScreenCaptureWindowProvider: WindowProviding {
+    public init() {}
+
+    public func windows() async throws -> [WindowInfo] {
         let content = try await SCShareableContent.excludingDesktopWindows(
             true,
             onScreenWindowsOnly: false

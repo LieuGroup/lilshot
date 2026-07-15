@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import LilshotCore
+import LilshotMac
 
 struct CaptureCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -48,7 +49,7 @@ struct CaptureCommand: AsyncParsableCommand {
             let path = output ?? CaptureOutputPath.default(for: window)
             let capturer = ScreenCaptureWindowCapturer()
             do {
-                let image = try await capturer.captureImage(windowID: window.id)
+                let image = try await capturer.captureImage(windowID: window.id, scale: 2)
                 try PNGWriter.write(image, to: path)
                 print(path)
             } catch {

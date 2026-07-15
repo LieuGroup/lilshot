@@ -30,5 +30,6 @@ public protocol WindowProviding: Sendable {
 }
 
 public protocol WindowCapturing: Sendable {
-    func captureImage(windowID: UInt32) async throws -> CGImage
+    /// Captures a window at `scale` relative to its point size (e.g. 2 for retina, 0.5 for previews).
+    func captureImage(windowID: UInt32, scale: Double) async throws -> CGImage
 }

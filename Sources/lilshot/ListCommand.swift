@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import LilshotCore
+import LilshotMac
 
 struct ListCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
