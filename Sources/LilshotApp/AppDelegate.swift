@@ -1,4 +1,5 @@
 import AppKit
+import LilshotCore
 import LilshotMac
 
 @MainActor
@@ -6,6 +7,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBar: StatusBarController?
     private var hotkey: HotkeyMonitor?
     private var picker: PickerPanelController?
+    private var regionOverlay: RegionSelectionOverlayController?
+    private let displayCapturer: any DisplayCapturing = ScreenCaptureDisplayCapturer()
+    private var isDisplayCapturing = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppMainMenu.install()
@@ -19,6 +23,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         self.picker = pickerController
 
+        let overlay = RegionSelectionOverlayController()
+        overlay.onSelect = { [weak self] rect in
+            self?.captureSelectedRegion(rect)
+        }
+        self.regionOverlay = overlay
+
         let status = StatusBarController(
             onPickWindow: { [weak pickerController] in
                 pickerController?.toggle()
@@ -31,14 +41,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let monitor = HotkeyMonitor()
         monitor.onHotkey = { [weak pickerController] in
-            Task { @MainActor in
-                pickerController?.toggle()
-            }
+            Task { @MainActor in pickerController?.toggle() }
         }
         monitor.onRecaptureLast = { [weak pickerController] in
-            Task { @MainActor in
-                pickerController?.recaptureLast()
-            }
+            Task { @MainActor in pickerController?.recaptureLast() }
+        }
+        monitor.onFullscreenCapture = { [weak self] in
+            Task { @MainActor in self?.captureFullscreen() }
+        }
+        monitor.onRegionCapture = { [weak self] in
+            Task { @MainActor in self?.beginRegionCapture() }
         }
         do {
             try monitor.register()
@@ -50,5 +62,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         hotkey?.unregister()
+        regionOverlay?.end(notifyCancel: false)
+    }
+
+    private func captureFullscreen() {
+        guard !isDisplayCapturing, regionOverlay?.isActive != true else { return }
+        do {
+            try ScreenRecordingPermission.ensureGranted()
+        } catch {
+            fputs("\(error.localizedDescription)\n", stderr)
+            return
+        }
+        isDisplayCapturing = true
+        Task {
+            defer { isDisplayCapturing = false }
+            do {
+                let image = try await displayCapturer.captureMainDisplay(scale: 2)
+                try ClipboardImageWriter.write(image)
+            } catch {
+                fputs("fullscreen capture failed: \(error.localizedDescription)\n", stderr)
+            }
+        }
+    }
+
+    private func beginRegionCapture() {
+        guard !isDisplayCapturing, regionOverlay?.isActive != true else { return }
+        do {
+            try ScreenRecordingPermission.ensureGranted()
+        } catch {
+            fputs("\(error.localizedDescription)\n", stderr)
+            return
+        }
+        picker?.close()
+        regionOverlay?.begin()
+    }
+
+    private func captureSelectedRegion(_ appKitRect: CGRect) {
+        guard !isDisplayCapturing else { return }
+        let displayHeight = NSScreen.main?.frame.height ?? appKitRect.maxY
+        let sckRect = RegionGeometry.appKitRectToScreenCaptureKit(
+            appKitRect,
+            displayHeight: displayHeight
+        )
+        isDisplayCapturing = true
+        Task {
+            defer { isDisplayCapturing = false }
+            do {
+                let image = try await displayCapturer.captureMainDisplayRegion(sckRect, scale: 2)
+                try ClipboardImageWriter.write(image)
+            } catch {
+                fputs("region capture failed: \(error.localizedDescription)\n", stderr)
+            }
+        }
     }
 }

@@ -2,22 +2,24 @@ import AppKit
 import Carbon.HIToolbox
 
 /// Global hotkeys via Carbon `RegisterEventHotKey` — no third-party deps.
-/// ⌥⇧S opens the picker; ⌥⇧R re-captures the last window.
+/// ⌥⇧S picker · ⌥⇧R re-capture · ⌥⇧F fullscreen · ⌥⇧A region.
 final class HotkeyMonitor: @unchecked Sendable {
     var onHotkey: (() -> Void)?
     var onRecaptureLast: (() -> Void)?
+    var onFullscreenCapture: (() -> Void)?
+    var onRegionCapture: (() -> Void)?
 
     private var pickHotKeyRef: EventHotKeyRef?
     private var recaptureHotKeyRef: EventHotKeyRef?
+    private var fullscreenHotKeyRef: EventHotKeyRef?
+    private var regionHotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
-    private let pickHotKeyID = EventHotKeyID(
-        signature: OSType(0x4C53484B), // "LSHK"
-        id: 1
-    )
-    private let recaptureHotKeyID = EventHotKeyID(
-        signature: OSType(0x4C53484B), // "LSHK"
-        id: 2
-    )
+
+    private let signature = OSType(0x4C53484B) // "LSHK"
+    private lazy var pickHotKeyID = EventHotKeyID(signature: signature, id: 1)
+    private lazy var recaptureHotKeyID = EventHotKeyID(signature: signature, id: 2)
+    private lazy var fullscreenHotKeyID = EventHotKeyID(signature: signature, id: 3)
+    private lazy var regionHotKeyID = EventHotKeyID(signature: signature, id: 4)
 
     func register() throws {
         unregister()
@@ -43,15 +45,13 @@ final class HotkeyMonitor: @unchecked Sendable {
                     return OSStatus(eventNotHandledErr)
                 }
                 switch eventHotKeyID.id {
-                case monitor.pickHotKeyID.id:
-                    monitor.onHotkey?()
-                    return noErr
-                case monitor.recaptureHotKeyID.id:
-                    monitor.onRecaptureLast?()
-                    return noErr
-                default:
-                    return OSStatus(eventNotHandledErr)
+                case 1: monitor.onHotkey?()
+                case 2: monitor.onRecaptureLast?()
+                case 3: monitor.onFullscreenCapture?()
+                case 4: monitor.onRegionCapture?()
+                default: return OSStatus(eventNotHandledErr)
                 }
+                return noErr
             },
             1,
             [EventTypeSpec(
@@ -67,31 +67,20 @@ final class HotkeyMonitor: @unchecked Sendable {
         self.handlerRef = handlerRef
 
         let modifiers = UInt32(optionKey | shiftKey)
-        try registerKey(
-            keyCode: UInt32(kVK_ANSI_S),
-            modifiers: modifiers,
-            id: pickHotKeyID,
-            into: &pickHotKeyRef,
-            label: "⌥⇧S"
-        )
-        try registerKey(
-            keyCode: UInt32(kVK_ANSI_R),
-            modifiers: modifiers,
-            id: recaptureHotKeyID,
-            into: &recaptureHotKeyRef,
-            label: "⌥⇧R"
-        )
+        try registerKey(UInt32(kVK_ANSI_S), modifiers, pickHotKeyID, &pickHotKeyRef, "⌥⇧S")
+        try registerKey(UInt32(kVK_ANSI_R), modifiers, recaptureHotKeyID, &recaptureHotKeyRef, "⌥⇧R")
+        try registerKey(UInt32(kVK_ANSI_F), modifiers, fullscreenHotKeyID, &fullscreenHotKeyRef, "⌥⇧F")
+        try registerKey(UInt32(kVK_ANSI_A), modifiers, regionHotKeyID, &regionHotKeyRef, "⌥⇧A")
     }
 
     func unregister() {
-        if let pickHotKeyRef {
-            UnregisterEventHotKey(pickHotKeyRef)
-            self.pickHotKeyRef = nil
+        for ref in [pickHotKeyRef, recaptureHotKeyRef, fullscreenHotKeyRef, regionHotKeyRef] {
+            if let ref { UnregisterEventHotKey(ref) }
         }
-        if let recaptureHotKeyRef {
-            UnregisterEventHotKey(recaptureHotKeyRef)
-            self.recaptureHotKeyRef = nil
-        }
+        pickHotKeyRef = nil
+        recaptureHotKeyRef = nil
+        fullscreenHotKeyRef = nil
+        regionHotKeyRef = nil
         if let handlerRef {
             RemoveEventHandler(handlerRef)
             self.handlerRef = nil
@@ -103,11 +92,11 @@ final class HotkeyMonitor: @unchecked Sendable {
     }
 
     private func registerKey(
-        keyCode: UInt32,
-        modifiers: UInt32,
-        id: EventHotKeyID,
-        into ref: inout EventHotKeyRef?,
-        label: String
+        _ keyCode: UInt32,
+        _ modifiers: UInt32,
+        _ id: EventHotKeyID,
+        _ ref: inout EventHotKeyRef?,
+        _ label: String
     ) throws {
         var hotKeyRef: EventHotKeyRef?
         let registerStatus = RegisterEventHotKey(
