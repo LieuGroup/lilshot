@@ -9,17 +9,19 @@ struct HotkeyRegistrationFailure: Equatable, Sendable {
 }
 
 /// Global hotkeys via Carbon `RegisterEventHotKey` — no third-party deps.
-/// ⌥⇧S picker · ⌥⇧R re-capture · ⌥⇧F fullscreen · ⌥⇧A region.
+/// ⌥⇧S picker · ⌥⇧R re-capture · ⌥⇧F fullscreen · ⌥⇧A region · ⌥⇧O region OCR.
 final class HotkeyMonitor: @unchecked Sendable {
     var onHotkey: (() -> Void)?
     var onRecaptureLast: (() -> Void)?
     var onFullscreenCapture: (() -> Void)?
     var onRegionCapture: (() -> Void)?
+    var onRegionTextCapture: (() -> Void)?
 
     private var pickHotKeyRef: EventHotKeyRef?
     private var recaptureHotKeyRef: EventHotKeyRef?
     private var fullscreenHotKeyRef: EventHotKeyRef?
     private var regionHotKeyRef: EventHotKeyRef?
+    private var regionTextHotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
 
     private let signature = OSType(0x4C53484B) // "LSHK"
@@ -27,6 +29,7 @@ final class HotkeyMonitor: @unchecked Sendable {
     private lazy var recaptureHotKeyID = EventHotKeyID(signature: signature, id: 2)
     private lazy var fullscreenHotKeyID = EventHotKeyID(signature: signature, id: 3)
     private lazy var regionHotKeyID = EventHotKeyID(signature: signature, id: 4)
+    private lazy var regionTextHotKeyID = EventHotKeyID(signature: signature, id: 5)
 
     /// Installs the handler, then registers each hotkey independently.
     /// Returns failures for keys that did not register; does not abandon siblings.
@@ -59,6 +62,7 @@ final class HotkeyMonitor: @unchecked Sendable {
                 case 2: monitor.onRecaptureLast?()
                 case 3: monitor.onFullscreenCapture?()
                 case 4: monitor.onRegionCapture?()
+                case 5: monitor.onRegionTextCapture?()
                 default: return OSStatus(eventNotHandledErr)
                 }
                 return noErr
@@ -82,17 +86,26 @@ final class HotkeyMonitor: @unchecked Sendable {
         attemptKey(UInt32(kVK_ANSI_R), modifiers, recaptureHotKeyID, &recaptureHotKeyRef, "⌥⇧R", &failures)
         attemptKey(UInt32(kVK_ANSI_F), modifiers, fullscreenHotKeyID, &fullscreenHotKeyRef, "⌥⇧F", &failures)
         attemptKey(UInt32(kVK_ANSI_A), modifiers, regionHotKeyID, &regionHotKeyRef, "⌥⇧A", &failures)
+        attemptKey(UInt32(kVK_ANSI_O), modifiers, regionTextHotKeyID, &regionTextHotKeyRef, "⌥⇧O", &failures)
         return failures
     }
 
     func unregister() {
-        for ref in [pickHotKeyRef, recaptureHotKeyRef, fullscreenHotKeyRef, regionHotKeyRef] {
+        let refs = [
+            pickHotKeyRef,
+            recaptureHotKeyRef,
+            fullscreenHotKeyRef,
+            regionHotKeyRef,
+            regionTextHotKeyRef,
+        ]
+        for ref in refs {
             if let ref { UnregisterEventHotKey(ref) }
         }
         pickHotKeyRef = nil
         recaptureHotKeyRef = nil
         fullscreenHotKeyRef = nil
         regionHotKeyRef = nil
+        regionTextHotKeyRef = nil
         if let handlerRef {
             RemoveEventHandler(handlerRef)
             self.handlerRef = nil

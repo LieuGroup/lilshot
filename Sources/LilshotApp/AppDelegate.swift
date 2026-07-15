@@ -4,12 +4,16 @@ import LilshotMac
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private enum RegionSelectionMode { case image, text }
+
     private var statusBar: StatusBarController?
     private var hotkey: HotkeyMonitor?
     private var picker: PickerPanelController?
     private var regionOverlay: RegionSelectionOverlayController?
     private let displayCapturer: any DisplayCapturing = ScreenCaptureDisplayCapturer()
+    private let textRecognizer: any TextRecognizing = VisionTextRecognizer()
     private var isDisplayCapturing = false
+    private var regionSelectionMode: RegionSelectionMode = .image
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppMainMenu.install()
@@ -50,7 +54,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { @MainActor in self?.captureFullscreen() }
         }
         monitor.onRegionCapture = { [weak self] in
-            Task { @MainActor in self?.beginRegionCapture() }
+            Task { @MainActor in self?.beginRegionCapture(mode: .image) }
+        }
+        monitor.onRegionTextCapture = { [weak self] in
+            Task { @MainActor in self?.beginRegionCapture(mode: .text) }
         }
         do {
             let failures = try monitor.register()
@@ -95,7 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func beginRegionCapture() {
+    private func beginRegionCapture(mode: RegionSelectionMode) {
         guard !isDisplayCapturing, regionOverlay?.isActive != true else { return }
         do {
             try ScreenRecordingPermission.ensureGranted()
@@ -104,6 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             CaptureFeedback.playError()
             return
         }
+        regionSelectionMode = mode
         picker?.close()
         regionOverlay?.begin()
     }
@@ -115,17 +123,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             appKitRect,
             displayHeight: displayHeight
         )
+        let mode = regionSelectionMode
         isDisplayCapturing = true
         Task {
             defer { isDisplayCapturing = false }
             do {
                 let image = try await displayCapturer.captureMainDisplayRegion(sckRect, relativeScale: 1.0)
-                try ClipboardImageWriter.write(image)
+                switch mode {
+                case .image:
+                    try ClipboardImageWriter.write(image)
+                    EditorWindowController.shared.present(image)
+                case .text:
+                    let observations = try await textRecognizer.recognize(in: image)
+                    try ClipboardTextWriter.write(OCRTextAssembler.assemble(observations))
+                }
                 CaptureFeedback.playSuccess()
                 CaptureFeedback.flash(over: appKitRect)
-                EditorWindowController.shared.present(image)
             } catch {
-                fputs("region capture failed: \(error.localizedDescription)\n", stderr)
+                let operation = mode == .text ? "region OCR" : "region capture"
+                fputs("\(operation) failed: \(error.localizedDescription)\n", stderr)
                 CaptureFeedback.playError()
             }
         }
