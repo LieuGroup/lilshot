@@ -19,7 +19,8 @@ enum EditorWindowKeyHandling {
         if actions.isEditingText() { return event }
 
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if flags == [.command, .shift], event.charactersIgnoringModifiers?.lowercased() == "t" {
+        let shortcutFlags = flags.subtracting(.capsLock)
+        if shortcutFlags == [.command, .shift], event.charactersIgnoringModifiers?.lowercased() == "t" {
             actions.copyText()
             return nil
         }

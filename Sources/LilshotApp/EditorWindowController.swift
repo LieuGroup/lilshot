@@ -113,7 +113,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         )
         window.title = "lilshot"
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 480, height: 320)
+        window.minSize = NSSize(width: 580, height: 320)
         window.center()
 
         let toolbar = EditorToolbarView(frame: .zero)
