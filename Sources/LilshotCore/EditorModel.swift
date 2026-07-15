@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// Active editor tool (select/blur reserved for later manipulation work).
+/// Active editor tool.
 public enum EditorTool: Equatable, Sendable {
     case select
     case arrow
@@ -34,6 +34,8 @@ public struct EditorModel: Equatable, Sendable {
     public var annotations: [Annotation]
     public var cropDraft: CGRect?
     public var nextStepIndex: Int
+    /// Index into `annotations`, or nil when nothing is selected.
+    public var selectedIndex: Int?
 
     private var undoStack: [EditorSnapshot]
     private var redoStack: [EditorSnapshot]
@@ -46,6 +48,7 @@ public struct EditorModel: Equatable, Sendable {
         self.annotations = []
         self.cropDraft = nil
         self.nextStepIndex = 1
+        self.selectedIndex = nil
         self.undoStack = []
         self.redoStack = []
     }
@@ -113,6 +116,38 @@ public struct EditorModel: Equatable, Sendable {
         pushAnnotation(.text(origin: origin, string: trimmed, fontSize: fontSize, color: color))
     }
 
+    public mutating func addBlur(from: CGPoint, to: CGPoint) {
+        let rect = RegionGeometry.normalizedRect(from: from, to: to)
+        guard rect.width >= 2, rect.height >= 2 else { return }
+        pushAnnotation(.blur(rect))
+    }
+
+    public mutating func selectAt(_ point: CGPoint) {
+        selectedIndex = AnnotationHitTesting.hitIndex(at: point, in: annotations)
+    }
+
+    public mutating func clearSelection() {
+        selectedIndex = nil
+    }
+
+    /// Push one undo snapshot before a drag-move sequence.
+    public mutating func beginMoveSelected() {
+        guard selectedIndex != nil else { return }
+        pushUndo()
+    }
+
+    public mutating func moveSelected(by delta: CGVector) {
+        guard let index = selectedIndex, annotations.indices.contains(index) else { return }
+        annotations[index] = annotations[index].translated(by: delta)
+    }
+
+    public mutating func deleteSelected() {
+        guard let index = selectedIndex, annotations.indices.contains(index) else { return }
+        pushUndo()
+        annotations.remove(at: index)
+        selectedIndex = nil
+    }
+
     public mutating func undo() {
         guard let previous = undoStack.popLast() else { return }
         redoStack.append(snapshot())
@@ -143,5 +178,6 @@ public struct EditorModel: Equatable, Sendable {
         annotations = snapshot.annotations
         nextStepIndex = snapshot.nextStepIndex
         cropDraft = nil
+        selectedIndex = nil
     }
 }

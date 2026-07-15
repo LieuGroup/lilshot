@@ -10,9 +10,27 @@ public enum EditorGeometry {
         return min(viewSize.width / imageSize.width, viewSize.height / imageSize.height)
     }
 
+    /// Display scale: zoom-to-fit, or 1.0 for actual pixels.
+    public static func displayScale(
+        imageSize: CGSize,
+        viewSize: CGSize,
+        actualSize: Bool
+    ) -> CGFloat {
+        actualSize ? 1 : fitScale(imageSize: imageSize, viewSize: viewSize)
+    }
+
     /// Image rect centered in the view after zoom-to-fit.
     public static func fittedImageRect(imageSize: CGSize, in viewSize: CGSize) -> CGRect {
-        let scale = fitScale(imageSize: imageSize, viewSize: viewSize)
+        imageRect(imageSize: imageSize, in: viewSize, actualSize: false)
+    }
+
+    /// Image rect centered in the view at fit or 100% scale.
+    public static func imageRect(
+        imageSize: CGSize,
+        in viewSize: CGSize,
+        actualSize: Bool
+    ) -> CGRect {
+        let scale = displayScale(imageSize: imageSize, viewSize: viewSize, actualSize: actualSize)
         let width = imageSize.width * scale
         let height = imageSize.height * scale
         return CGRect(
@@ -26,10 +44,11 @@ public enum EditorGeometry {
     public static func imagePoint(
         fromView point: CGPoint,
         imageSize: CGSize,
-        viewSize: CGSize
+        viewSize: CGSize,
+        actualSize: Bool = false
     ) -> CGPoint {
-        let fitted = fittedImageRect(imageSize: imageSize, in: viewSize)
-        let scale = fitScale(imageSize: imageSize, viewSize: viewSize)
+        let fitted = imageRect(imageSize: imageSize, in: viewSize, actualSize: actualSize)
+        let scale = displayScale(imageSize: imageSize, viewSize: viewSize, actualSize: actualSize)
         guard scale > 0 else { return .zero }
         return CGPoint(
             x: (point.x - fitted.origin.x) / scale,
@@ -40,10 +59,11 @@ public enum EditorGeometry {
     public static func viewPoint(
         fromImage point: CGPoint,
         imageSize: CGSize,
-        viewSize: CGSize
+        viewSize: CGSize,
+        actualSize: Bool = false
     ) -> CGPoint {
-        let fitted = fittedImageRect(imageSize: imageSize, in: viewSize)
-        let scale = fitScale(imageSize: imageSize, viewSize: viewSize)
+        let fitted = imageRect(imageSize: imageSize, in: viewSize, actualSize: actualSize)
+        let scale = displayScale(imageSize: imageSize, viewSize: viewSize, actualSize: actualSize)
         return CGPoint(
             x: fitted.origin.x + point.x * scale,
             y: fitted.origin.y + point.y * scale
@@ -53,13 +73,17 @@ public enum EditorGeometry {
     public static func imageRect(
         fromView rect: CGRect,
         imageSize: CGSize,
-        viewSize: CGSize
+        viewSize: CGSize,
+        actualSize: Bool = false
     ) -> CGRect {
-        let origin = imagePoint(fromView: rect.origin, imageSize: imageSize, viewSize: viewSize)
+        let origin = imagePoint(
+            fromView: rect.origin, imageSize: imageSize, viewSize: viewSize, actualSize: actualSize
+        )
         let corner = imagePoint(
             fromView: CGPoint(x: rect.maxX, y: rect.maxY),
             imageSize: imageSize,
-            viewSize: viewSize
+            viewSize: viewSize,
+            actualSize: actualSize
         )
         return RegionGeometry.normalizedRect(from: origin, to: corner)
     }
@@ -67,13 +91,17 @@ public enum EditorGeometry {
     public static func viewRect(
         fromImage rect: CGRect,
         imageSize: CGSize,
-        viewSize: CGSize
+        viewSize: CGSize,
+        actualSize: Bool = false
     ) -> CGRect {
-        let origin = viewPoint(fromImage: rect.origin, imageSize: imageSize, viewSize: viewSize)
+        let origin = viewPoint(
+            fromImage: rect.origin, imageSize: imageSize, viewSize: viewSize, actualSize: actualSize
+        )
         let corner = viewPoint(
             fromImage: CGPoint(x: rect.maxX, y: rect.maxY),
             imageSize: imageSize,
-            viewSize: viewSize
+            viewSize: viewSize,
+            actualSize: actualSize
         )
         return RegionGeometry.normalizedRect(from: origin, to: corner)
     }

@@ -98,4 +98,25 @@ final class EditorGeometryTests: XCTestCase {
         )
         XCTAssertEqual(clamped, CGRect(x: 0, y: 10, width: 45, height: 50))
     }
+
+    func testActualSizeScaleIsOneAndCentersImage() {
+        XCTAssertEqual(
+            EditorGeometry.displayScale(
+                imageSize: CGSize(width: 200, height: 100),
+                viewSize: CGSize(width: 100, height: 100),
+                actualSize: true
+            ),
+            1,
+            accuracy: 0.0001
+        )
+        let rect = EditorGeometry.imageRect(
+            imageSize: CGSize(width: 200, height: 100),
+            in: CGSize(width: 100, height: 100),
+            actualSize: true
+        )
+        XCTAssertEqual(rect.origin.x, -50, accuracy: 0.0001)
+        XCTAssertEqual(rect.origin.y, 0, accuracy: 0.0001)
+        XCTAssertEqual(rect.width, 200, accuracy: 0.0001)
+        XCTAssertEqual(rect.height, 100, accuracy: 0.0001)
+    }
 }
