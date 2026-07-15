@@ -8,7 +8,9 @@ final class PickerViewModelTests: XCTestCase {
         title: String = "Title",
         width: Int = 800,
         height: Int = 600,
-        onScreen: Bool = true
+        onScreen: Bool = true,
+        layer: Int = 0,
+        ownerIsRegularApp: Bool = true
     ) -> WindowInfo {
         WindowInfo(
             id: id,
@@ -16,7 +18,9 @@ final class PickerViewModelTests: XCTestCase {
             title: title,
             width: width,
             height: height,
-            isOnScreen: onScreen
+            isOnScreen: onScreen,
+            layer: layer,
+            ownerIsRegularApp: ownerIsRegularApp
         )
     }
 
@@ -42,7 +46,7 @@ final class PickerViewModelTests: XCTestCase {
 
     func testEmptyQueryKeepsNoiseFilteredOffscreenFirstOrder() {
         let onScreen = window(id: 1, app: "Chrome", onScreen: true)
-        let offScreen = window(id: 2, app: "Notes", onScreen: false)
+        let offScreen = window(id: 2, app: "Notes", title: "Todo", onScreen: false)
 
         var model = PickerViewModel(windows: [onScreen, offScreen])
         model.setQuery("")

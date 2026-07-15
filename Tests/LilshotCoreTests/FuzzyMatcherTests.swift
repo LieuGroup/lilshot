@@ -8,7 +8,9 @@ final class FuzzyMatcherTests: XCTestCase {
         title: String = "",
         width: Int = 800,
         height: Int = 600,
-        onScreen: Bool = true
+        onScreen: Bool = true,
+        layer: Int = 0,
+        ownerIsRegularApp: Bool = true
     ) -> WindowInfo {
         WindowInfo(
             id: id,
@@ -16,7 +18,9 @@ final class FuzzyMatcherTests: XCTestCase {
             title: title,
             width: width,
             height: height,
-            isOnScreen: onScreen
+            isOnScreen: onScreen,
+            layer: layer,
+            ownerIsRegularApp: ownerIsRegularApp
         )
     }
 

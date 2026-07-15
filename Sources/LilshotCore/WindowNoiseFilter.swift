@@ -6,9 +6,12 @@ public enum WindowNoiseFilter {
     public static func apply(to windows: [WindowInfo]) -> [WindowInfo] {
         windows
             .filter { window in
-                window.width >= minimumDimension
+                window.layer == 0
+                    && window.ownerIsRegularApp
+                    && window.width >= minimumDimension
                     && window.height >= minimumDimension
                     && !window.appName.isEmpty
+                    && !(window.title.isEmpty && !window.isOnScreen)
             }
             .sorted { lhs, rhs in
                 if lhs.isOnScreen != rhs.isOnScreen {

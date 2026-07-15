@@ -43,6 +43,8 @@ struct ListCommand: AsyncParsableCommand {
                 "title": window.title,
                 "width": window.width,
                 "height": window.height,
+                "layer": window.layer,
+                "ownerIsRegularApp": window.ownerIsRegularApp,
             ]
         }
         do {

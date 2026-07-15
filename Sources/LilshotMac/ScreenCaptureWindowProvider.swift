@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import LilshotCore
 import ScreenCaptureKit
@@ -11,13 +12,23 @@ public struct ScreenCaptureWindowProvider: WindowProviding {
             onScreenWindowsOnly: false
         )
         return content.windows.map { window in
-            WindowInfo(
+            let pid = window.owningApplication?.processID
+            let ownerIsRegularApp: Bool
+            if let pid {
+                let app = NSRunningApplication(processIdentifier: pid)
+                ownerIsRegularApp = app?.activationPolicy == .regular
+            } else {
+                ownerIsRegularApp = false
+            }
+            return WindowInfo(
                 id: window.windowID,
                 appName: window.owningApplication?.applicationName ?? "",
                 title: window.title ?? "",
                 width: Int(window.frame.width.rounded()),
                 height: Int(window.frame.height.rounded()),
-                isOnScreen: window.isOnScreen
+                isOnScreen: window.isOnScreen,
+                layer: window.windowLayer,
+                ownerIsRegularApp: ownerIsRegularApp
             )
         }
     }

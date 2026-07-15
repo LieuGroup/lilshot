@@ -7,6 +7,8 @@ public struct WindowInfo: Equatable, Sendable {
     public let width: Int
     public let height: Int
     public let isOnScreen: Bool
+    public let layer: Int
+    public let ownerIsRegularApp: Bool
 
     public init(
         id: UInt32,
@@ -14,7 +16,9 @@ public struct WindowInfo: Equatable, Sendable {
         title: String,
         width: Int,
         height: Int,
-        isOnScreen: Bool
+        isOnScreen: Bool,
+        layer: Int,
+        ownerIsRegularApp: Bool
     ) {
         self.id = id
         self.appName = appName
@@ -22,6 +26,8 @@ public struct WindowInfo: Equatable, Sendable {
         self.width = width
         self.height = height
         self.isOnScreen = isOnScreen
+        self.layer = layer
+        self.ownerIsRegularApp = ownerIsRegularApp
     }
 }
 
