@@ -10,6 +10,7 @@ final class PickerPanelController {
     private var panel: NSPanel?
     private var isCapturing = false
     private var showGeneration: UInt64 = 0
+    private var lastCapture = LastCaptureStore()
 
     init(provider: any WindowProviding, capturer: any WindowCapturing) {
         self.capturer = capturer
@@ -54,6 +55,27 @@ final class PickerPanelController {
         session.resetForClose()
     }
 
+    /// Re-capture the last successful picker target, or open the picker if none / gone.
+    func recaptureLast() {
+        guard let last = lastCapture.current else {
+            show()
+            return
+        }
+        guard !isCapturing else { return }
+        isCapturing = true
+        Task {
+            defer { isCapturing = false }
+            do {
+                let image = try await capturer.captureImage(windowID: last.windowID, scale: 2)
+                try ClipboardImageWriter.write(image)
+            } catch ScreenCaptureWindowCapturer.CaptureError.windowNotFound {
+                show()
+            } catch {
+                fputs("re-capture failed: \(error.localizedDescription)\n", stderr)
+            }
+        }
+    }
+
     private func makePanel() -> NSPanel {
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 720, height: 420),
@@ -93,6 +115,7 @@ final class PickerPanelController {
             do {
                 let image = try await capturer.captureImage(windowID: window.id, scale: 2)
                 try ClipboardImageWriter.write(image)
+                lastCapture.remember(windowID: window.id, appName: window.appName)
                 close()
             } catch {
                 fputs("capture failed: \(error.localizedDescription)\n", stderr)

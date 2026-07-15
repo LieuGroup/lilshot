@@ -1,5 +1,4 @@
 import AppKit
-import LilshotCore
 import LilshotMac
 
 @MainActor
@@ -34,6 +33,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         monitor.onHotkey = { [weak pickerController] in
             Task { @MainActor in
                 pickerController?.toggle()
+            }
+        }
+        monitor.onRecaptureLast = { [weak pickerController] in
+            Task { @MainActor in
+                pickerController?.recaptureLast()
             }
         }
         do {
