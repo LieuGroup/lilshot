@@ -1,0 +1,49 @@
+name: Dev
+
+on:
+  push:
+    branches: [dev]
+
+permissions:
+  contents: write
+
+jobs:
+  dev:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Test
+        run: swift test
+
+      - name: Build ad-hoc app
+        run: bash scripts/make-app.sh
+
+      - name: Zip artifact
+        id: zip
+        run: |
+          set -euo pipefail
+          SHORT="$(git rev-parse --short HEAD)"
+          ZIP="dist/lilshot-dev-${SHORT}.zip"
+          ditto -c -k --keepParent dist/lilshot.app "${ZIP}"
+          echo "zip=${ZIP}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish rolling prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ZIP="${{ steps.zip.outputs.zip }}"
+          gh release delete dev-latest --cleanup-tag --yes || true
+          gh release create dev-latest "${ZIP}" \
+            --prerelease \
+            --title "dev latest" \
+            --notes "Rolling prerelease from \`dev\` @ $(git rev-parse --short HEAD)."

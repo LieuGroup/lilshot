@@ -1,0 +1,143 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Test
+        run: swift test
+
+      - name: Read version and check tag
+        id: meta
+        run: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag v${VERSION} already exists — skipping release."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip (tag exists)
+        if: steps.meta.outputs.exists == 'true'
+        run: exit 0
+
+      - name: Signed release
+        id: signed
+        if: >-
+          steps.meta.outputs.exists != 'true'
+          && secrets.MACOS_CERT_P12_BASE64 != ''
+          && secrets.MACOS_CERT_PASSWORD != ''
+          && secrets.NOTARY_KEY_P8_BASE64 != ''
+          && secrets.NOTARY_KEY_ID != ''
+          && secrets.NOTARY_ISSUER != ''
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          NOTARY_KEY_P8_BASE64: ${{ secrets.NOTARY_KEY_P8_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.meta.outputs.version }}"
+          CERT_PATH="${RUNNER_TEMP}/lilshot-cert.p12"
+          KEY_PATH="${RUNNER_TEMP}/lilshot-notary.p8"
+          KEYCHAIN_PATH="${RUNNER_TEMP}/lilshot-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          echo "KEYCHAIN_PATH=${KEYCHAIN_PATH}" >> "$GITHUB_ENV"
+          echo "CERT_PATH=${CERT_PATH}" >> "$GITHUB_ENV"
+          echo "KEY_PATH=${KEY_PATH}" >> "$GITHUB_ENV"
+
+          echo -n "${MACOS_CERT_P12_BASE64}" | base64 --decode > "${CERT_PATH}"
+          echo -n "${NOTARY_KEY_P8_BASE64}" | base64 --decode > "${KEY_PATH}"
+          chmod 600 "${CERT_PATH}" "${KEY_PATH}"
+
+          security create-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
+          security set-keychain-settings -lut 21600 "${KEYCHAIN_PATH}"
+          security unlock-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
+          security import "${CERT_PATH}" \
+            -P "${MACOS_CERT_PASSWORD}" \
+            -A -t cert -f pkcs12 -k "${KEYCHAIN_PATH}"
+          security list-keychain -d user -s "${KEYCHAIN_PATH}"
+          security set-key-partition-list -S apple-tool:,apple: -s \
+            -k "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
+
+          IDENTITY="$(security find-identity -v -p codesigning "${KEYCHAIN_PATH}" \
+            | awk -F'"' '/Developer ID Application/{print $2; exit}')"
+          if [[ -z "${IDENTITY}" ]]; then
+            echo "error: no Developer ID Application identity found in imported certificate" >&2
+            exit 1
+          fi
+
+          export LILSHOT_SIGN_IDENTITY="${IDENTITY}"
+          export LILSHOT_NOTARY_KEY="${KEY_PATH}"
+          export LILSHOT_NOTARY_KEY_ID="${NOTARY_KEY_ID}"
+          export LILSHOT_NOTARY_ISSUER="${NOTARY_ISSUER}"
+          export LILSHOT_VERSION="${VERSION}"
+          bash scripts/make-release.sh
+
+          ZIP="dist/lilshot-v${VERSION}.zip"
+          echo "zip=${ZIP}" >> "$GITHUB_OUTPUT"
+          echo "built=true" >> "$GITHUB_OUTPUT"
+
+      - name: Unsigned release fallback
+        id: unsigned
+        if: >-
+          steps.meta.outputs.exists != 'true'
+          && steps.signed.outcome != 'success'
+          && (secrets.MACOS_CERT_P12_BASE64 == ''
+              || secrets.MACOS_CERT_PASSWORD == ''
+              || secrets.NOTARY_KEY_P8_BASE64 == ''
+              || secrets.NOTARY_KEY_ID == ''
+              || secrets.NOTARY_ISSUER == '')
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.meta.outputs.version }}"
+          bash scripts/make-app.sh
+          ZIP="dist/lilshot-v${VERSION}-unsigned.zip"
+          ditto -c -k --keepParent dist/lilshot.app "${ZIP}"
+          echo "zip=${ZIP}" >> "$GITHUB_OUTPUT"
+          echo "built=true" >> "$GITHUB_OUTPUT"
+
+      - name: Cleanup signing materials
+        if: always() && env.KEYCHAIN_PATH != ''
+        run: |
+          security delete-keychain "${KEYCHAIN_PATH}" || true
+          rm -f "${CERT_PATH:-}" "${KEY_PATH:-}" || true
+
+      - name: Create tag and GitHub Release
+        if: steps.meta.outputs.exists != 'true' && (steps.signed.outputs.built == 'true' || steps.unsigned.outputs.built == 'true')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.meta.outputs.version }}"
+          TAG="v${VERSION}"
+          ZIP="${{ steps.signed.outputs.zip }}"
+          if [[ -z "${ZIP}" ]]; then
+            ZIP="${{ steps.unsigned.outputs.zip }}"
+          fi
+          if [[ -z "${ZIP}" || ! -f "${ZIP}" ]]; then
+            echo "error: release zip missing: ${ZIP:-<empty>}" >&2
+            exit 1
+          fi
+          gh release create "${TAG}" "${ZIP}" --generate-notes --title "${TAG}"
