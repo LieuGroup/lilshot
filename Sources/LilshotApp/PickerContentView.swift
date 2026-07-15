@@ -36,6 +36,7 @@ struct PickerContentView: View {
             } else {
                 List(Array(session.rows.enumerated()), id: \.element.id) { index, window in
                     WindowRowView(window: window, isSelected: index == session.selectedIndex)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                         .onTapGesture {
                             session.selectIndex(index)
