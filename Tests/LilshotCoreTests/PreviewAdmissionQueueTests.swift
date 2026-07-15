@@ -106,6 +106,46 @@ final class PreviewAdmissionQueueTests: XCTestCase {
         XCTAssertNil(queue.next())
     }
 
+    func testInvalidateAllowsReEnqueueToFront() {
+        var queue = PreviewAdmissionQueue(maxConcurrent: 2)
+        queue.enqueue(ids: [1, 2])
+        queue.markCached(1)
+        queue.enqueue(ids: [1])
+        XCTAssertEqual(queue.next(), 2) // 1 still done — skipped
+
+        queue.invalidate(1)
+        queue.enqueue(ids: [1])
+        XCTAssertEqual(queue.next(), 1)
+    }
+
+    func testInvalidateOfInFlightIsNoOp() {
+        var queue = PreviewAdmissionQueue(maxConcurrent: 2)
+        queue.enqueue(ids: [1, 2])
+        _ = queue.next()
+        queue.markStarted(1)
+
+        queue.invalidate(1)
+        queue.enqueue(ids: [1])
+        // Still in-flight — cannot re-enqueue; next is 2
+        XCTAssertEqual(queue.next(), 2)
+        queue.markStarted(2)
+        XCTAssertNil(queue.next())
+    }
+
+    func testInvalidateOfUnknownIdIsSafe() {
+        var queue = PreviewAdmissionQueue(maxConcurrent: 2)
+        queue.invalidate(99)
+        queue.enqueue(ids: [1])
+        XCTAssertEqual(queue.next(), 1)
+    }
+
+    func testInvalidateRemovesPendingId() {
+        var queue = PreviewAdmissionQueue(maxConcurrent: 2)
+        queue.enqueue(ids: [1, 2, 3])
+        queue.invalidate(2)
+        XCTAssertEqual(drainAll(&queue), [1, 3])
+    }
+
     /// Drain by repeatedly admitting and finishing one at a time (serial).
     private func drainAll(_ queue: inout PreviewAdmissionQueue) -> [UInt32] {
         var result: [UInt32] = []

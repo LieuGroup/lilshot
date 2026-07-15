@@ -9,6 +9,7 @@ final class PickerPanelController {
     private let capturer: any WindowCapturing
     private var panel: NSPanel?
     private var isCapturing = false
+    private var showGeneration: UInt64 = 0
 
     init(provider: any WindowProviding, capturer: any WindowCapturing) {
         self.capturer = capturer
@@ -34,15 +35,21 @@ final class PickerPanelController {
         let panel = panel ?? makePanel()
         self.panel = panel
 
+        showGeneration &+= 1
+        let gen = showGeneration
         Task {
             await session.reload()
+            guard gen == showGeneration else { return }
             panel.center()
             NSApp.activate(ignoringOtherApps: true)
             panel.makeKeyAndOrderFront(nil)
+            session.startLivePreviewRefresh()
         }
     }
 
     func close() {
+        showGeneration &+= 1
+        session.stopLivePreviewRefresh()
         panel?.orderOut(nil)
         session.resetForClose()
     }

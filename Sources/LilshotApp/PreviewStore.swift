@@ -28,8 +28,9 @@ final class PreviewStore: ObservableObject {
         images[windowID]
     }
 
+    /// True only while waiting for the first image — refreshes keep the prior frame.
     func isLoading(_ windowID: UInt32) -> Bool {
-        inFlight.contains(windowID)
+        inFlight.contains(windowID) && images[windowID] == nil
     }
 
     func clear() {
@@ -47,6 +48,13 @@ final class PreviewStore: ObservableObject {
         let needed = windowIDs.filter { images[$0] == nil }
         guard !needed.isEmpty else { return }
         queue.enqueue(ids: needed)
+        pump()
+    }
+
+    /// Re-capture one window without clearing its cached image (swap on arrival).
+    func refresh(windowID: UInt32) {
+        queue.invalidate(windowID)
+        queue.enqueue(ids: [windowID])
         pump()
     }
 

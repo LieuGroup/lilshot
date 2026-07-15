@@ -57,6 +57,15 @@ public struct PreviewAdmissionQueue: Sendable {
         done.insert(id)
     }
 
+    /// Clears done/pending so `id` can be captured again. No-op while in-flight.
+    public mutating func invalidate(_ id: UInt32) {
+        guard !inFlight.contains(id) else { return }
+        done.remove(id)
+        if let index = pending.firstIndex(of: id) {
+            pending.remove(at: index)
+        }
+    }
+
     public mutating func reset() {
         pending.removeAll()
         inFlight.removeAll()
