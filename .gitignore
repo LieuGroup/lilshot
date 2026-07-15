@@ -1,0 +1,4 @@
+.build/
+.DS_Store
+spikes/**/sck-spike
+spikes/**/*.png
