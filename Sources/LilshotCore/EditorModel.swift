@@ -1,6 +1,7 @@
 import CoreGraphics
+import Foundation
 
-/// Active editor tool. Round 1 UI only activates crop; others are wired later.
+/// Active editor tool. Draw tools + crop are Round 2; select/blur in Round 3.
 public enum EditorTool: Equatable, Sendable {
     case select
     case arrow
@@ -82,6 +83,34 @@ public struct EditorModel: Equatable, Sendable {
         if case .stepNumber(_, let index, _) = annotation {
             nextStepIndex = max(nextStepIndex, index + 1)
         }
+    }
+
+    /// Font size ≈ 5% of canvas height for the text tool.
+    public static func defaultTextFontSize(canvasHeight: CGFloat) -> CGFloat {
+        canvasHeight * 0.05
+    }
+
+    public mutating func addArrow(from: CGPoint, to: CGPoint) {
+        pushAnnotation(
+            .arrow(from: from, to: to, color: color, strokeWidth: strokeWidth)
+        )
+    }
+
+    public mutating func addRect(from: CGPoint, to: CGPoint) {
+        let rect = RegionGeometry.normalizedRect(from: from, to: to)
+        guard rect.width >= 2, rect.height >= 2 else { return }
+        pushAnnotation(.rect(rect, color: color, strokeWidth: strokeWidth))
+    }
+
+    public mutating func addStepNumber(at center: CGPoint) {
+        pushAnnotation(.stepNumber(center: center, index: nextStepIndex, color: color))
+    }
+
+    public mutating func addText(at origin: CGPoint, string: String) {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let fontSize = Self.defaultTextFontSize(canvasHeight: canvasSize.height)
+        pushAnnotation(.text(origin: origin, string: trimmed, fontSize: fontSize, color: color))
     }
 
     public mutating func undo() {
