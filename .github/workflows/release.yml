@@ -10,6 +10,12 @@ permissions:
 jobs:
   release:
     runs-on: macos-15
+    env:
+      MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+      MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+      NOTARY_KEY_P8_BASE64: ${{ secrets.NOTARY_KEY_P8_BASE64 }}
+      NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+      NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
     steps:
       - uses: actions/checkout@v4
 
@@ -40,21 +46,22 @@ jobs:
         if: steps.meta.outputs.exists == 'true'
         run: exit 0
 
+      - name: Check signing secrets
+        id: signing_gate
+        run: |
+          if [ -n "$MACOS_CERT_P12_BASE64" ] \
+            && [ -n "$MACOS_CERT_PASSWORD" ] \
+            && [ -n "$NOTARY_KEY_P8_BASE64" ] \
+            && [ -n "$NOTARY_KEY_ID" ] \
+            && [ -n "$NOTARY_ISSUER" ]; then
+            echo "signing=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signing=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Signed release
         id: signed
-        if: >-
-          steps.meta.outputs.exists != 'true'
-          && secrets.MACOS_CERT_P12_BASE64 != ''
-          && secrets.MACOS_CERT_PASSWORD != ''
-          && secrets.NOTARY_KEY_P8_BASE64 != ''
-          && secrets.NOTARY_KEY_ID != ''
-          && secrets.NOTARY_ISSUER != ''
-        env:
-          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
-          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
-          NOTARY_KEY_P8_BASE64: ${{ secrets.NOTARY_KEY_P8_BASE64 }}
-          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
-          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        if: steps.meta.outputs.exists != 'true' && steps.signing_gate.outputs.signing == 'true'
         run: |
           set -euo pipefail
           VERSION="${{ steps.meta.outputs.version }}"
@@ -104,11 +111,7 @@ jobs:
         if: >-
           steps.meta.outputs.exists != 'true'
           && steps.signed.outcome != 'success'
-          && (secrets.MACOS_CERT_P12_BASE64 == ''
-              || secrets.MACOS_CERT_PASSWORD == ''
-              || secrets.NOTARY_KEY_P8_BASE64 == ''
-              || secrets.NOTARY_KEY_ID == ''
-              || secrets.NOTARY_ISSUER == '')
+          && steps.signing_gate.outputs.signing == 'false'
         run: |
           set -euo pipefail
           VERSION="${{ steps.meta.outputs.version }}"
