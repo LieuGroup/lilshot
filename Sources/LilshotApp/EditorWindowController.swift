@@ -15,6 +15,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     private var imageRedo: [CGImage] = []
     private var actualSize = false
     private var keyMonitor: Any?
+    private let textCopyCoordinator = EditorTextCopyCoordinator()
 
     private init() { super.init(window: nil) }
 
@@ -94,6 +95,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
 
     @objc func zoomToFit(_ sender: Any?) { actualSize = false; syncViews() }
     @objc func zoomActualSize(_ sender: Any?) { actualSize = true; syncViews() }
+    @objc func copyText(_ sender: Any?) { textCopyCoordinator.copyText(from: image) }
 
     func applyModel(_ body: (inout EditorModel) -> Void) {
         body(&model)
@@ -118,6 +120,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         toolbar.translatesAutoresizingMaskIntoConstraints = false
         toolbar.onSelectTool = { [weak self] tool in self?.selectTool(tool) }
         toolbar.onSelectColor = { [weak self] color in self?.selectColor(color) }
+        toolbar.onCopyText = { [weak self] in self?.copyText(nil) }
         self.toolbar = toolbar
 
         let canvas = EditorCanvasView(frame: .zero)
@@ -151,6 +154,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
                 actions: EditorWindowKeyHandling.Actions(
                     selectTool: { [weak self] tool in self?.selectTool(tool) },
                     applyCrop: { [weak self] in self?.applyCrop(nil) },
+                    copyText: { [weak self] in self?.copyText(nil) },
                     deleteSelected: { [weak self] in
                         self?.applyModel { $0.deleteSelected() }
                     },

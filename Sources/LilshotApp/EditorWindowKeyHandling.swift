@@ -6,6 +6,7 @@ enum EditorWindowKeyHandling {
     struct Actions {
         var selectTool: (EditorTool) -> Void
         var applyCrop: () -> Void
+        var copyText: () -> Void
         var deleteSelected: () -> Void
         var close: () -> Void
         var setActualSize: (Bool) -> Void
@@ -18,6 +19,10 @@ enum EditorWindowKeyHandling {
         if actions.isEditingText() { return event }
 
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags == [.command, .shift], event.charactersIgnoringModifiers?.lowercased() == "t" {
+            actions.copyText()
+            return nil
+        }
         if flags.contains(.command) {
             if event.charactersIgnoringModifiers == "0" {
                 actions.setActualSize(false)

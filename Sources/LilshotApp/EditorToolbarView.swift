@@ -5,6 +5,7 @@ import LilshotCore
 final class EditorToolbarView: NSView {
     var onSelectTool: ((EditorTool) -> Void)?
     var onSelectColor: ((AnnotationColor) -> Void)?
+    var onCopyText: (() -> Void)?
 
     private var toolButtons: [EditorTool: NSButton] = [:]
     private var colorButtons: [NSButton] = []
@@ -57,6 +58,15 @@ final class EditorToolbarView: NSView {
             toolStack.addArrangedSubview(button)
         }
 
+        let copyTextButton = NSButton(
+            title: "Copy text",
+            target: self,
+            action: #selector(copyTextClicked)
+        )
+        copyTextButton.bezelStyle = .flexiblePush
+        copyTextButton.toolTip = "Copy recognized text (⌘⇧T)"
+        toolStack.addArrangedSubview(copyTextButton)
+
         let colors: [AnnotationColor] = [.amber, .red, .blue, .black, .white]
         let colorStack = NSStackView()
         colorStack.orientation = .horizontal
@@ -98,6 +108,10 @@ final class EditorToolbarView: NSView {
         let colors: [AnnotationColor] = [.amber, .red, .blue, .black, .white]
         guard sender.tag >= 0, sender.tag < colors.count else { return }
         onSelectColor?(colors[sender.tag])
+    }
+
+    @objc private func copyTextClicked() {
+        onCopyText?()
     }
 
     private func refreshToolChrome() {
